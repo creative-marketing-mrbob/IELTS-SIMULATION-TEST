@@ -114,7 +114,7 @@ export const RegistrationPage: React.FC = () => {
             </label>
             <input
               type="text"
-              placeholder="Contoh: Bayu Aji"
+              placeholder=""
               value={formData.fullName}
               onChange={e => setFormData({ ...formData, fullName: e.target.value })}
               className={`w-full h-14 px-4 text-sm rounded-xl bg-[#f8fbff] border ${
@@ -132,7 +132,7 @@ export const RegistrationPage: React.FC = () => {
             </label>
             <input
               type="tel"
-              placeholder="08xxxxxxxxxx"
+              placeholder=""
               value={formData.whatsapp}
               onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
               className={`w-full h-14 px-4 text-sm rounded-xl bg-[#f8fbff] border ${
@@ -173,7 +173,7 @@ export const RegistrationPage: React.FC = () => {
                 type="number"
                 min="12"
                 max="80"
-                placeholder="Contoh: 21"
+                placeholder=""
                 value={formData.age}
                 onChange={e => setFormData({ ...formData, age: e.target.value })}
                 className={`w-full h-14 px-4 text-sm rounded-xl bg-[#f8fbff] border ${
@@ -282,7 +282,7 @@ export const RegistrationPage: React.FC = () => {
                 <label className="text-xs font-bold text-slate-700">Nomor WhatsApp</label>
                 <input
                   type="tel"
-                  placeholder="08xxxxxxxxxx"
+                  placeholder=""
                   value={resumeWhatsapp}
                   onChange={e => setResumeWhatsapp(e.target.value)}
                   className="w-full h-12 px-3.5 text-xs rounded-xl bg-[#f8fbff] border border-[#e6eaf2] focus:bg-white focus:outline-none focus:border-blue-600 font-bold"
@@ -293,7 +293,7 @@ export const RegistrationPage: React.FC = () => {
                 <label className="text-xs font-bold text-slate-700">Access Code</label>
                 <input
                   type="text"
-                  placeholder="Contoh: X7KM-29PQ"
+                  placeholder=""
                   value={resumeAccessCode}
                   onChange={e => setResumeAccessCode(e.target.value.toUpperCase())}
                   className="w-full h-12 px-3.5 text-xs font-mono font-bold tracking-wider rounded-xl bg-[#f8fbff] border border-[#e6eaf2] focus:bg-white focus:outline-none focus:border-blue-600 uppercase"
