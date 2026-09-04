@@ -10,7 +10,7 @@ export const Footer: React.FC = () => {
           {/* Col 1: Brand */}
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
-              <img src="/logo-mrbob%202.png" alt="Academia English School" className="h-9 w-auto object-contain" />
+              <img src="/logo-mrbob.png" alt="Academia English School" className="h-9 w-auto object-contain" />
               <span className="font-extrabold text-base text-slate-900">Academia English School - Pare</span>
             </div>
             <p className="text-xs text-slate-500 leading-relaxed max-w-sm">

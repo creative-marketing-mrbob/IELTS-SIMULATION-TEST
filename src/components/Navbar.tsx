@@ -17,7 +17,7 @@ export const Navbar: React.FC = () => {
             className="flex items-center space-x-2.5 cursor-pointer group"
           >
             <img
-              src="/logo-mrbob%202.png"
+              src="/logo-mrbob.png"
               alt="IELTS Simulation"
               className="h-11 w-auto max-w-[120px] object-contain"
             />
