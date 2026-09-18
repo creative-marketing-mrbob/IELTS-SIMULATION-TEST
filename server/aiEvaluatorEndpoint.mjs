@@ -63,6 +63,7 @@ CRITICAL RULES:
 5. In descriptorReason, explicitly state what prevents the response from reaching the next band.
 6. Provide short, exact quote excerpts in positiveEvidence and limitingEvidence from the candidate text. Do NOT invent sentences the candidate did not write.
 7. If the candidate response is empty or <= 20 words, assign Band 1 or 2 with an underlength warning.
+8. Keep descriptorReason, feedback, and evidence items concise (1-2 clear sentences each) to keep evaluation focused, accurate, and performant.
 
 Return JSON only with task1.taskAchievement, task1.coherenceCohesion, task1.lexicalResource, task1.grammaticalRangeAccuracy, task2.taskResponse, task2.coherenceCohesion, task2.lexicalResource, task2.grammaticalRangeAccuracy. Each criterion must include band, positiveEvidence, limitingEvidence, descriptorReason, feedback, confidence.
 `;
@@ -84,6 +85,7 @@ CRITICAL RULES:
 10. In descriptorReason, explain why the descriptor was selected and what prevents reaching the next band.
 11. Quote short excerpts from the transcript for non-pronunciation criteria when available.
 12. If Audio Evidence Supplied To Model is NO and transcript is unavailable, but candidate recorded substantial speaking audio (recorded duration > 0 seconds across parts), provide a provisional assessment based on candidate's recorded length, topic prompts, and target profile, state that detailed acoustic review is required by the human tutor, and set pronunciation.status = "REQUIRES_TUTOR_EVALUATION" with pronunciation.band = null.
+13. Keep descriptorReason, feedback, and evidence items concise (1-2 clear sentences each) to deliver precise and actionable assessment.
 
 Return JSON only with fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation. Each scored criterion must include band, positiveEvidence, limitingEvidence, descriptorReason, feedback, confidence.
 `;

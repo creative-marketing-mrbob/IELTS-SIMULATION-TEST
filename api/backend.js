@@ -5,6 +5,10 @@ import {
   handleAiEvaluate
 } from '../server/aiEvaluatorEndpoint.mjs';
 
+export const config = {
+  maxDuration: 60
+};
+
 export default async function handler(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   // Vercel may expose either the original URL or the rewritten function URL.
