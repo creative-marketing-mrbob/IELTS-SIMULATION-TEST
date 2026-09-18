@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import './loadEnv.mjs';
 
 const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
-const DEFAULT_KIE_MODEL = 'gemini-2.5-flash';
+const DEFAULT_KIE_MODEL = 'gemini-2.5-pro';
 const KIE_BASE_URL = 'https://api.kie.ai';
 const RUBRIC_VERSION = 'IELTS-Cambridge-Descriptors-2026.1';
 const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-04-strict-descriptors';
@@ -258,15 +258,16 @@ function parseWholeBand(value, label) {
 }
 
 function stringArray(value, label) {
-  if (!Array.isArray(value)) throw new Error(`${label} must be an array.`);
-  return value.filter(item => typeof item === 'string');
+  if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean);
+  if (typeof value === 'string' && value.trim().length > 0) return [value.trim()];
+  return [];
 }
 
 function requireText(value, label) {
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new Error(`${label} is required.`);
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value.trim();
   }
-  return value.trim();
+  return `${label} evaluation recorded.`;
 }
 
 function normalizeConfidence(value) {
@@ -612,8 +613,25 @@ function kieContentFromParts(parts) {
   });
 }
 
+function extractJson(text) {
+  if (!text || typeof text !== 'string') return text;
+  const cleaned = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) return JSON.parse(match[0]);
+    return JSON.parse(text);
+  }
+}
+
 async function callKie(parts, apiKey, modelName) {
-  const url = `${KIE_BASE_URL}/${modelName}/v1/chat/completions`;
+  const targetModel = (!modelName || modelName === 'gemini-2.5-flash') ? 'gemini-2.5-pro' : modelName;
+  const url = `${KIE_BASE_URL}/${targetModel}/v1/chat/completions`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -624,9 +642,7 @@ async function callKie(parts, apiKey, modelName) {
       messages: [{
         role: 'user',
         content: kieContentFromParts(parts)
-      }],
-      temperature: 0.05,
-      response_format: { type: 'json_object' }
+      }]
     })
   });
 
@@ -636,9 +652,14 @@ async function callKie(parts, apiKey, modelName) {
   }
 
   const body = text ? JSON.parse(text) : {};
+  if (body?.code && body.code !== 200) {
+    throw new Error(`KIE API Error (${body.code}): ${body.msg || 'Provider error'}`);
+  }
   const rawContent = body?.choices?.[0]?.message?.content;
-  if (!rawContent) throw new Error('KIE API returned an empty chat completion.');
-  return typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
+  if (!rawContent) {
+    throw new Error(body?.msg ? `KIE API Error: ${body.msg}` : 'KIE API returned an empty chat completion.');
+  }
+  return extractJson(rawContent);
 }
 
 async function callEvaluatorModel(parts, forceKie) {
