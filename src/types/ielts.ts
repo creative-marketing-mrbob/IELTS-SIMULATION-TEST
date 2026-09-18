@@ -249,6 +249,16 @@ export interface SpeakingEvaluationDetail {
   lr: CriterionEvidence;
   gra: CriterionEvidence;
   pro: CriterionEvidence;
+  verifiedTranscripts?: Array<{
+    id: string;
+    label: string;
+    transcript: string;
+    rateable: boolean;
+  }>;
+  partRelevance?: Record<string, {
+    status: 'RELEVANT' | 'PARTIALLY_RELEVANT' | 'OFF_TOPIC';
+    reason: string;
+  }>;
   rawAverage: number;
   estimatedBand: number;
 }

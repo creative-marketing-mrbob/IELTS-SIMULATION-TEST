@@ -86,6 +86,8 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
     ];
 
     const overallBand = spDetail?.estimatedBand ?? candidate.speaking?.band ?? '-';
+    const verifiedTranscripts = spDetail?.verifiedTranscripts || [];
+    const partRelevance = spDetail?.partRelevance || {};
 
     return (
       <div className="space-y-4 rounded-3xl border border-blue-100 bg-[#f8fbff] p-5 shadow-soft">
@@ -147,6 +149,60 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
             </div>
           </div>
         </div>
+
+        {verifiedTranscripts.length > 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center space-x-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                <span>Transkrip Terverifikasi yang Dipakai AI</span>
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Bukti FC, LR, dan GRA harus berupa kutipan yang benar-benar ada di transkrip ini.
+              </p>
+            </div>
+            <div className="space-y-2">
+              {verifiedTranscripts.map(part => {
+                const relevance = partRelevance[part.id];
+                const relevanceLabel = relevance?.status === 'RELEVANT'
+                  ? 'Relevan'
+                  : relevance?.status === 'PARTIALLY_RELEVANT'
+                    ? 'Sebagian relevan'
+                    : relevance?.status === 'OFF_TOPIC'
+                      ? 'Tidak relevan'
+                      : 'Belum diperiksa';
+                const relevanceStyle = relevance?.status === 'RELEVANT'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : relevance?.status === 'PARTIALLY_RELEVANT'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-red-50 text-red-700 border-red-200';
+                return (
+                  <div key={part.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                      <span className="text-xs font-extrabold text-[#08245c]">{part.label}</span>
+                      <span className={`px-2 py-0.5 rounded-md border text-[10px] font-black uppercase ${relevanceStyle}`}>
+                        {relevanceLabel}
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
+                      {part.transcript || '[Tidak ada ucapan yang dapat dikenali]'}
+                    </p>
+                    {relevance?.reason && (
+                      <p className="text-[11px] text-slate-500 mt-1.5">Alasan relevansi: {relevance.reason}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {verifiedTranscripts.length === 0 && spDetail && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900">
+            <span className="font-black">Penilaian lama belum memiliki verifikasi transkrip.</span>{' '}
+            Kutipan dan band pada penilaian ini belum dapat dipastikan berasal dari rekaman. Jalankan Nilai Ulang AI untuk memakai sistem verifikasi baru.
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-3">
           {criteria.map(crit => renderCriterionCard(crit, expandedKeys[crit.key], () => toggleExpand(crit.key)))}
@@ -392,7 +448,7 @@ function renderCriterionCard(crit: NormalizedCriterion, isExpanded: boolean, onT
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3.5">
               <div className="flex items-center space-x-1.5 font-black text-emerald-800 mb-2 text-[11px] uppercase tracking-wider">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Karakteristik Positif Terpenuhi</span>
+                <span>Bukti Positif dari Respons</span>
               </div>
               {crit.positiveEvidence.length > 0 ? (
                 <ul className="space-y-1.5 text-slate-700 font-medium">

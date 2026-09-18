@@ -5,7 +5,42 @@ const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
 const DEFAULT_KIE_MODEL = 'gemini-3-5-flash-openai';
 const KIE_BASE_URL = 'https://api.kie.ai';
 const RUBRIC_VERSION = 'IELTS-Cambridge-Descriptors-2026.1';
-const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-18-complete-speaking-evidence';
+const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-18-official-forms-grounded-evidence';
+
+const officialSpeakingDescriptors = `
+OFFICIAL IELTS SPEAKING BAND DESCRIPTORS (supplied assessment form):
+Band 9 - FC: fluent with only very occasional repetition/self-correction; hesitation is content-related; fully coherent and appropriately extended. LR: total flexibility and precision; sustained accurate idiomatic language. GRA: structures precise and accurate apart from native-speaker slips. PRO: full phonological range; effortless intelligibility.
+Band 8 - FC: fluent with very occasional repetition/self-correction; most hesitation is content-related; coherent, appropriate and relevant development. LR: wide and flexible resource; skilful less-common/idiomatic use; effective paraphrase. GRA: wide flexible range; majority error-free. PRO: wide phonological range; sustained rhythm, stress and intonation; easily understood.
+Band 7 - FC: keeps going and readily produces long turns; language-related hesitation does not affect coherence; flexible discourse markers/connectives. LR: flexible across varied topics; some less-common/idiomatic items; effective paraphrase. GRA: range used flexibly; frequent error-free sentences; simple and complex sentences effective despite some errors. PRO: all Band 6 positives plus some Band 8 positives.
+Band 6 - FC: keeps going and is willing to produce long turns; coherence may be lost through hesitation/repetition/self-correction; uses a range of discourse markers/connectives though not always appropriately. LR: sufficient to discuss topics at length; inappropriate use may occur but meaning remains clear; generally paraphrases successfully. GRA: mix of short and complex forms with limited flexibility; frequent complex-structure errors rarely impede communication. PRO: range of features with variable control; generally appropriate chunking; some effective but unsustained stress/intonation; occasional clarity loss; generally understood without much effort.
+Band 5 - FC: usually keeps going through repetition/self-correction and/or slow speech; frequent searches for basic lexis/grammar; complex speech causes disfluency. LR: sufficient for familiar and unfamiliar topics but limited flexibility; paraphrase attempts not always successful. GRA: basic forms fairly accurate; complex forms limited and nearly always erroneous, sometimes requiring reformulation. PRO: all Band 4 positives plus some, but not all, Band 6 positives.
+Band 4 - FC: cannot keep going without noticeable pauses; slow/repetitive; frequent self-correction; links simple sentences repetitively with coherence breakdowns. LR: sufficient for familiar topics but only basic meaning on unfamiliar topics; frequent word-choice errors; rare paraphrase. GRA: basic forms with some error-free short utterances; rare subordinate clauses; repetitive structures and frequent errors. PRO: limited acceptable features; frequent rhythm lapses; limited stress/intonation; frequent mispronunciation; understanding requires effort.
+Band 3 - FC: frequent or long word-search pauses; limited linking and limited ability beyond simple responses; often cannot convey the basic message. LR: simple vocabulary mainly for personal information; inadequate for unfamiliar topics. GRA: basic forms attempted but errors numerous. PRO: some Band 2 and some Band 4 features.
+Band 2 - FC: lengthy pauses before nearly every word; isolated words with virtually no communicative significance. LR: isolated/memorised utterances with very little communication. GRA: no evidence of basic sentence forms. PRO: few acceptable features; connected speech impaired; often unintelligible.
+Band 1 - FC: essentially none; totally incoherent. LR: only a few isolated words; no communication possible. GRA: no rateable language unless memorised. PRO: occasional recognisable words/phonemes but no overall meaning; unintelligible.
+Band 0 - does not attend or complete the test.
+
+MANDATORY FORM NOTES:
+- A candidate must fully fit the positive features of a descriptor before receiving that band.
+- Rate average performance across all parts of the test.
+`;
+
+const officialWritingDescriptorRules = `
+OFFICIAL IELTS WRITING BAND DESCRIPTOR RULES (supplied May 2023 form):
+- A script must fully fit the positive features of a descriptor at a particular level.
+- Bold negative features in the form limit the rating.
+- Task 1 Band 9: all requirements are fully and appropriately satisfied; only extremely rare content lapses. Band 8: all requirements are covered appropriately, relevantly and sufficiently; key features are skilfully selected, clearly presented, highlighted and illustrated, with only occasional omissions. Band 7: requirements are covered with relevant and accurate content; selected key features are clearly highlighted, a clear overview is presented, data are appropriately categorised, and main trends or differences are identified, though illustration or extension may be incomplete.
+- Task 2 Band 9: the prompt is addressed and explored in depth; a clear, fully developed position directly answers it; ideas are relevant, fully extended and well supported. Band 8: the prompt is appropriately and sufficiently addressed; the position is clear and well developed; ideas are relevant, well extended and supported. Band 7: the main prompt parts are appropriately addressed; the position is clear and developed; main ideas are extended and supported, though support may be generalised or lack focus/precision.
+- Coherence/Cohesion Band 9: message followed effortlessly, cohesion rarely attracts attention, minimal lapses, skilful paragraphing. Band 8: message followed with ease, logical sequencing, well-managed cohesion, sufficient appropriate paragraphing. Band 7: logical organisation and clear progression; flexible cohesive devices including reference/substitution, with some inaccuracies or over/under-use. Band 6: generally coherent arrangement and clear overall progression, but cohesion may be faulty/mechanical and referencing may repeat or lack clarity. Band 5: organisation is evident but not wholly logical; progression and fluent linking are limited; cohesion/reference may be repetitive or inaccurate. Band 4 or below: no clear progression, unclear relationships, minimal or inaccurate cohesive control.
+- Lexical Resource Band 9: full flexibility and precision; wide, accurate, natural and sophisticated vocabulary, with extremely rare minor errors. Band 8: wide, fluent and flexible resource for precise meaning; skilful uncommon/idiomatic use; only occasional errors with minimal impact. Band 7: sufficient flexibility and precision; some less-common/idiomatic use and awareness of style/collocation; few errors that do not reduce clarity. Band 6: generally adequate and appropriate resource; generally clear meaning despite restricted range or imprecision; errors do not impede communication. Band 5: limited but minimally adequate resource; little variation, frequent simplification/repetition or inappropriate word choice; errors may cause difficulty. Band 4 or below: basic, repetitive, inadequate or task-unrelated resource; errors may impede or prevent meaning.
+- Grammatical Range/Accuracy Band 9: wide structures with full flexibility/control; appropriate grammar and punctuation throughout; extremely rare minor errors. Band 8: wide, flexible, accurate structures; majority error-free; occasional non-systematic errors with minimal impact. Band 7: varied complex structures with some flexibility; frequent error-free sentences; a few persistent errors do not impede communication. Band 6: a mix of simple and complex forms with limited flexibility; complex forms are less accurate; errors rarely impede communication. Band 5: limited, repetitive structures; attempted complex sentences are faulty; frequent errors may cause difficulty. Band 4 or below: very limited structures, rare subordinate clauses, frequent or predominant errors that may impede or prevent meaning.
+- Band 6 requires generally coherent progression; generally adequate task-appropriate vocabulary; a mix of simple and complex forms whose errors rarely impede communication. Task 1 must adequately highlight selected key features, attempt a relevant overview, and support information with figures/data. Task 2 must address the main prompt parts with a directly relevant position and relevant, though possibly insufficiently developed, ideas.
+- Band 5 has incomplete or inadequate task coverage, limited development/flexibility, imperfect progression, repetitive language, limited structures, and frequent errors that may cause difficulty.
+- Band 4 reflects an attempted but weak or partly irrelevant response, unclear progression, basic/repetitive or task-unrelated vocabulary, very limited structures, and frequent errors that may impede meaning.
+- Band 3 reflects failure to address task requirements, largely irrelevant or very limited information, no apparent logical organisation, inadequate lexical control, and predominant grammatical errors preventing most meaning.
+- Band 2 content barely relates to the task and may be wholly off-topic, with extremely limited language and little evidence of sentence forms.
+- Responses of 20 words or fewer are Band 1; wholly unrelated content is Band 1. Band 0 is only for no attempt, non-English throughout, or proven total memorisation.
+`;
 
 const writingTask1 = {
   content: `The chart below shows the average monthly change in the prices of three metals (copper, nickel, and zinc) during 2014.
@@ -55,11 +90,14 @@ const writingPrompt = `
 You are a senior certified Cambridge IELTS Senior Examiner.
 Evaluate the candidate's IELTS Academic Writing Task 1 and Task 2 submissions with strict fidelity to the official IELTS Band Descriptors.
 
+${officialWritingDescriptorRules}
+
 CRITICAL RULES:
 1. NEVER guess or invent an overall band.
 2. For EVERY criterion, assign an INTEGER band score from 1 to 9 (e.g. 4, 5, 6, 7, 8, 9). Do NOT assign decimals like 6.3 or 5.8.
 3. Select the HIGHEST band whose positive characteristics are sufficiently supported by actual candidate response evidence.
 4. If performance sits between descriptors, choose the lower fully supported descriptor.
+   - Do not infer or optimise toward the candidate's target score. The target score is deliberately excluded from this evaluation.
 5. In descriptorReason, provide a CLEAR, POINT-BY-POINT EXPLANATION for the assigned band:
    - Part A (Alasan Pemberian Band): Concise points explaining specifically which demonstrated features of the candidate's response justify awarding this band according to Cambridge descriptors.
    - Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi): Concise points detailing what errors, limitations, or missing elements prevent reaching the next higher band (e.g. "Diberikan Band 5 karena... Belum mencapai Band 6 karena...").
@@ -75,6 +113,8 @@ const speakingPrompt = `
 You are a senior certified Cambridge IELTS Senior Examiner.
 Evaluate the candidate's IELTS Speaking performance across the entire performance: Part 1 + Part 2 + Part 3.
 
+${officialSpeakingDescriptors}
+
 CRITICAL RULES:
 1. Apply the official IELTS Speaking Band Descriptors strictly. A candidate must fully fit the positive features of a band before receiving that band.
 2. Rate the average performance across all supplied parts, but penalize missing, extremely short, off-topic, memorised, or non-communicative responses.
@@ -82,6 +122,10 @@ CRITICAL RULES:
    - Assess only language you can actually hear in attached audio or read in an exact transcript.
    - Explicitly compare each response with its prompt. If a response is unrelated, state that in the evidence and reduce FC and LR accordingly.
 3. Band 5 is NOT a default middle score. Only award Band 5+ when the candidate usually keeps going, produces more than isolated/simple responses, has enough vocabulary for the topic, and shows rateable sentence control.
+   - Band 6 is not justified merely because meaning can sometimes be understood. Confirm every positive Band 6 feature for that criterion from the full performance; otherwise award Band 5 or lower.
+   - For GRA Band 6, frequent errors may occur in complex structures, but basic sentence control must be evident and errors must rarely impede communication. Frequent basic subject-verb, tense, word-order, or fragment errors do not fully fit Band 6.
+   - For LR Band 6, the transcript must show sufficient topic vocabulary at length and generally successful paraphrase. Basic repeated vocabulary without demonstrated paraphrase does not fully fit Band 6.
+   - Never let politeness, effort, recording length, or the candidate's desired score raise a band.
 4. If answers are mostly "I don't know", "no idea", unrelated words, repeated filler, silence, laughter/noise, or do not answer the prompt, treat the response as non-communicative and assign Band 1 for FC, LR, GRA, and Pronunciation.
 5. If the whole performance is a few isolated words, wholly unrelated to the prompts, or has virtually no communicative meaning, assign Band 1 for all criteria.
 6. Band 2 is only for isolated words or memorised utterances with at least a tiny amount of recognisable communication. If FC is totally incoherent or LR shows no communication possible, assign Band 1.
@@ -92,10 +136,12 @@ CRITICAL RULES:
    - Part A (Alasan Pemberian Band): Concise points explaining specifically what features of the candidate's speech justify this band under Cambridge descriptors.
    - Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi): Concise points detailing what hesitations, grammatical inaccuracies, lexical repetition, or pronunciation features prevent reaching the next higher band (e.g. "Diberikan Band 5 untuk FC karena... Belum mencapai Band 6 karena...").
    Use short, structured sentences or bullet points. Do NOT write long winding paragraphs.
-9. Quote short excerpts or phonological observations for positiveEvidence and limitingEvidence.
+9. For FC, LR, and GRA, every item in positiveEvidence and limitingEvidence MUST be one short, verbatim excerpt copied from the supplied verified transcript. Put one excerpt per array item. Do not combine quotes, paraphrase, correct grammar, or invent words. For Pronunciation, use concrete audio observations rather than lexical quotes.
 10. Keep feedback concise and actionable for candidate progression.
 
-Return JSON only with fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation. Each scored criterion must include band (integer 1-9), positiveEvidence, limitingEvidence, descriptorReason, feedback, confidence.
+Return partRelevance as an object keyed by every supplied part id. Each value must contain status exactly RELEVANT, PARTIALLY_RELEVANT, or OFF_TOPIC and a concise reason. Off-topic speech does not demonstrate sufficient topic vocabulary or coherent topic development.
+
+Return JSON only with partRelevance, fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation. Each scored criterion must include band (integer 1-9), positiveEvidence, limitingEvidence, descriptorReason, feedback, confidence.
 `;
 
 function readJsonBody(req) {
@@ -326,13 +372,13 @@ function speakingStats(answers = {}) {
   const totalWords = countWords(transcript);
   const totalDuration = items.reduce((sum, item) => sum + (Number.isFinite(item.duration) ? item.duration : 0), 0);
   const answeredItems = items.filter(item => item.audio || item.duration > 0 || countWords(item.transcript) > 0).length;
-  const lowEffortPattern = /\b(i\s+don'?t\s+know|no\s+idea|nothing|maybe|whatever|skip|pass|nggak\s+tahu|tidak\s+tahu|ga\s+tahu|gak\s+tahu)\b/i;
+  const lowEffortPattern = /\b(i\s+don'?t\s+know|no\s+idea|skip|pass|nggak\s+tahu|tidak\s+tahu|ga\s+tahu|gak\s+tahu)\b/i;
   return {
     transcript,
     totalWords,
     totalDuration,
     answeredItems,
-    hasLowEffortLanguage: lowEffortPattern.test(transcript)
+    hasLowEffortLanguage: totalWords <= 30 && lowEffortPattern.test(transcript)
   };
 }
 
@@ -341,7 +387,6 @@ function capCriterion(evidence, maxScore, reason) {
   return {
     ...evidence,
     score: maxScore,
-    limitingEvidence: [...evidence.limitingEvidence, reason],
     descriptorMatch: `${evidence.descriptorMatch} Descriptor cap applied: ${reason}`,
     feedback: `${evidence.feedback} ${reason}`,
     confidence: evidence.confidence === 'Low' ? evidence.confidence : 'Medium'
@@ -358,7 +403,7 @@ function modelFlagsNonCommunicative(criteria) {
     ])
     .join(' ')
     .toLowerCase();
-  return /non[-\s]?communicative|virtually no communicative|no communicative|no communication possible|totally incoherent|speech is totally incoherent|off[-\s]?topic|wholly unrelated|unrelated to the prompt|unrelated to the question|does not answer|did not answer|no meaningful response|no rateable language|no resource|isolated words|i don'?t know|no idea|random|nonsense|ngawur/.test(text);
+  return /non[-\s]?communicative|virtually no communicative|no communicative|no communication possible|totally incoherent|speech is totally incoherent|no meaningful response|no rateable language|no resource|isolated words|i don'?t know|no idea/.test(text);
 }
 
 function applySpeakingDescriptorCaps(answers, criteria) {
@@ -442,14 +487,16 @@ async function storagePathToGeminiPart(label, storagePath, isKie = false) {
 function speakingAudioSpecs(answers = {}) {
   if (isQaSpeakingAnswers(answers)) {
     return qaSpeakingPromptItems.map(([label, key]) => ({
+      id: key,
       label,
+      transcriptKey: `${key}_transcript`,
       audio: answers[`${key}_audio`]
     }));
   }
   return [
-    { label: 'Part 1 interview audio', audio: answers.part1Audio },
-    { label: 'Part 2 cue card audio', audio: answers.part2Audio },
-    { label: 'Part 3 discussion audio', audio: answers.part3Audio }
+    { id: 'part1', label: 'Part 1 interview audio', transcriptKey: 'part1Transcript', audio: answers.part1Audio },
+    { id: 'part2', label: 'Part 2 cue card audio', transcriptKey: 'part2Transcript', audio: answers.part2Audio },
+    { id: 'part3', label: 'Part 3 discussion audio', transcriptKey: 'part3Transcript', audio: answers.part3Audio }
   ];
 }
 
@@ -472,7 +519,61 @@ async function loadCompleteSpeakingAudio(answers, isKie) {
   if (unreadable.length) {
     throw new Error(`AI Speaking evaluation dibatalkan karena rekaman tidak dapat dibaca atau formatnya tidak didukung: ${unreadable.join(', ')}.`);
   }
-  return loaded.flatMap(item => item.parts);
+  return {
+    specs: loaded.map(({ id, label, transcriptKey }) => ({ id, label, transcriptKey })),
+    audioParts: loaded.flatMap(item => item.parts)
+  };
+}
+
+function buildSpeakingTranscriptionPrompt(specs) {
+  const expectedParts = specs.map(item => `- id: ${item.id}; label: ${item.label}`).join('\n');
+  const responseShape = JSON.stringify({
+    parts: specs.map(item => ({ id: item.id, transcript: 'verbatim words only', rateable: true }))
+  });
+  return `Transcribe the attached IELTS Speaking recordings before any grading.
+
+EXPECTED RECORDINGS:
+${expectedParts}
+
+STRICT TRANSCRIPTION RULES:
+1. Transcribe only words actually audible in each recording. Do not use outside knowledge and do not infer answers.
+2. Preserve the candidate's grammar mistakes, repeated words, fillers, false starts, and incomplete sentences.
+3. Do not correct, paraphrase, summarise, translate, or improve the speech.
+4. Use [inaudible] only where speech cannot be understood. Use an empty transcript for silence or noise without intelligible speech.
+5. The IELTS questions are intentionally not supplied here. Never insert likely topic phrases.
+6. Return every expected id exactly once and in the supplied order.
+
+Return JSON only in this exact shape:
+${responseShape}`;
+}
+
+function validateVerifiedTranscripts(parsed, specs) {
+  if (!Array.isArray(parsed?.parts)) {
+    throw new Error('AI Speaking evaluation dibatalkan karena transkripsi rekaman tidak lengkap.');
+  }
+
+  return specs.map(spec => {
+    const matches = parsed.parts.filter(part => part?.id === spec.id);
+    if (matches.length !== 1 || typeof matches[0].transcript !== 'string') {
+      throw new Error(`AI Speaking evaluation dibatalkan karena transkrip terverifikasi tidak tersedia untuk ${spec.label}.`);
+    }
+    const transcript = matches[0].transcript.trim();
+    return {
+      id: spec.id,
+      label: spec.label,
+      transcript,
+      rateable: matches[0].rateable === true && countWords(transcript) > 0
+    };
+  });
+}
+
+function answersWithVerifiedTranscripts(answers, specs, verifiedTranscripts) {
+  const enriched = { ...answers };
+  for (const spec of specs) {
+    const verified = verifiedTranscripts.find(item => item.id === spec.id);
+    enriched[spec.transcriptKey] = verified?.transcript || '';
+  }
+  return enriched;
 }
 
 function inputHash(payload) {
@@ -511,7 +612,6 @@ function buildWritingPrompt(user, answers) {
 Candidate ID: ${user.candidateId}
 Result ID: ${user.resultId}
 Candidate Name: ${user.fullName}
-Target Band: ${user.targetScore}
 
 === WRITING TASK 1 ===
 Exact Task 1 question:
@@ -589,8 +689,8 @@ ${formatSpeakingTranscript(answers[`${key}_transcript`], answers[`${key}_duratio
 Candidate ID: ${user.candidateId}
 Result ID: ${user.resultId}
 Candidate Name: ${user.fullName}
-Target Band: ${user.targetScore}
 Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}
+The transcripts below were produced in a separate audio-only pass. Treat them as the only permitted source for FC/LR/GRA quotations. Check the attached audio only for pronunciation and timing features.
 
 ${qaBlocks}`;
   }
@@ -600,8 +700,8 @@ ${qaBlocks}`;
 Candidate ID: ${user.candidateId}
 Result ID: ${user.resultId}
 Candidate Name: ${user.fullName}
-Target Band: ${user.targetScore}
 Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}
+The transcripts below were produced in a separate audio-only pass. Treat them as the only permitted source for FC/LR/GRA quotations. Check the attached audio only for pronunciation and timing features.
 
 === SPEAKING PART 1 ===
 Original prompts:
@@ -877,7 +977,74 @@ function validateWriting(user, answers, parsed, hash, modelName, provider) {
   return { success: true, assessment, detail, report };
 }
 
-function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasAudio) {
+function normalizeTranscriptEvidence(value = '') {
+  return String(value)
+    .toLowerCase()
+    .replace(/\[inaudible\]/g, ' ')
+    .replace(/[“”‘’"'`]/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function validateGroundedCriterionEvidence(label, criterion, verifiedTranscripts) {
+  const normalizedTranscripts = verifiedTranscripts
+    .map(item => normalizeTranscriptEvidence(item.transcript))
+    .filter(Boolean);
+
+  if (!normalizedTranscripts.length) {
+    if (criterion.score !== 1) {
+      throw new Error(`AI Speaking evaluation rejected: ${label} must be Band 1 because no intelligible transcript evidence exists.`);
+    }
+    return;
+  }
+
+  if (!criterion.positiveEvidence.length || !criterion.limitingEvidence.length) {
+    throw new Error(`AI Speaking evaluation rejected: ${label} must include positive and limiting verbatim transcript evidence.`);
+  }
+
+  for (const evidence of [...criterion.positiveEvidence, ...criterion.limitingEvidence]) {
+    const normalizedEvidence = normalizeTranscriptEvidence(evidence);
+    const grounded = normalizedEvidence.length > 0
+      && normalizedTranscripts.some(transcript => transcript.includes(normalizedEvidence));
+    if (!grounded) {
+      throw new Error(`AI Speaking evaluation rejected because ${label} evidence was not found in the verified transcript: ${evidence}`);
+    }
+  }
+}
+
+function validatePartRelevance(value, verifiedTranscripts) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('AI Speaking evaluation rejected: partRelevance is missing.');
+  }
+  const allowed = new Set(['RELEVANT', 'PARTIALLY_RELEVANT', 'OFF_TOPIC']);
+  return Object.fromEntries(verifiedTranscripts.map(part => {
+    const item = value[part.id];
+    if (!item || !allowed.has(item.status) || typeof item.reason !== 'string' || !item.reason.trim()) {
+      throw new Error(`AI Speaking evaluation rejected: invalid relevance review for ${part.label}.`);
+    }
+    return [part.id, { status: item.status, reason: item.reason.trim() }];
+  }));
+}
+
+function applySpeakingRelevanceCaps(criteria, partRelevance) {
+  const entries = Object.values(partRelevance);
+  const offTopicCount = entries.filter(item => item.status === 'OFF_TOPIC').length;
+  if (!entries.length || offTopicCount < Math.ceil(entries.length / 2)) return criteria;
+
+  const allOffTopic = offTopicCount === entries.length;
+  const maxScore = allOffTopic ? 3 : 4;
+  const reason = allOffTopic
+    ? 'All supplied responses were judged off-topic, so topic development and topic vocabulary cannot support FC or LR above Band 3.'
+    : 'Most supplied responses were judged off-topic, so topic development and topic vocabulary cannot support FC or LR above Band 4.';
+  return {
+    ...criteria,
+    fc: capCriterion(criteria.fc, maxScore, reason),
+    lr: capCriterion(criteria.lr, maxScore, reason)
+  };
+}
+
+function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasAudio, verifiedTranscripts) {
   let fc = criterionEvidence('Fluency and Coherence (FC)', parsed?.fluencyCoherence, 'fluencyCoherence');
   let lr = criterionEvidence('Lexical Resource (LR)', parsed?.lexicalResource, 'lexicalResource');
   let gra = criterionEvidence('Grammatical Range and Accuracy (GRA)', parsed?.grammaticalRangeAccuracy, 'grammaticalRangeAccuracy');
@@ -899,7 +1066,13 @@ function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasA
     };
   }
 
+  validateGroundedCriterionEvidence('FC', fc, verifiedTranscripts);
+  validateGroundedCriterionEvidence('LR', lr, verifiedTranscripts);
+  validateGroundedCriterionEvidence('GRA', gra, verifiedTranscripts);
+  const partRelevance = validatePartRelevance(parsed?.partRelevance, verifiedTranscripts);
+
   ({ fc, lr, gra, pro } = applySpeakingDescriptorCaps(answers, { fc, lr, gra, pro }));
+  ({ fc, lr, gra, pro } = applySpeakingRelevanceCaps({ fc, lr, gra, pro }, partRelevance));
 
   const rawAverage = (fc.score + lr.score + gra.score + pro.score) / 4;
   const estimatedBand = roundToNearestHalfBand(rawAverage);
@@ -909,9 +1082,13 @@ function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasA
     lr,
     gra,
     pro,
+    verifiedTranscripts,
+    partRelevance,
     rawAverage,
     estimatedBand
   };
+
+  const auditedParsed = { ...parsed, verifiedTranscripts, partRelevance };
 
   const report = {
     band: estimatedBand,
@@ -932,7 +1109,7 @@ function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasA
   };
 
   const assessment = {
-    ...baseAssessment(user, 'speaking', parsed, hash, modelName, provider),
+    ...baseAssessment(user, 'speaking', auditedParsed, hash, modelName, provider),
     criterion_scores: { FC: fc.score, LR: lr.score, GRA: gra.score, PRO: pro.score },
     criterion_evidence: {
       FC: { positive: fc.positiveEvidence, limiting: fc.limitingEvidence, descriptorReason: fc.descriptorMatch, feedback: fc.feedback },
@@ -1021,11 +1198,15 @@ export async function evaluateCandidateSection(section, user, answers, forceKie 
 
   const isKie = shouldUseKie(forceKie);
 
-  const audioParts = await loadCompleteSpeakingAudio(answers, isKie);
+  const { specs, audioParts } = await loadCompleteSpeakingAudio(answers, isKie);
   const hasAudio = true;
-  const prompt = buildSpeakingPrompt(user, answers, hasAudio);
+  const transcriptionPrompt = buildSpeakingTranscriptionPrompt(specs);
+  const { parsed: transcription } = await callEvaluatorModel([{ text: transcriptionPrompt }, ...audioParts], forceKie);
+  const verifiedTranscripts = validateVerifiedTranscripts(transcription, specs);
+  const verifiedAnswers = answersWithVerifiedTranscripts(answers, specs, verifiedTranscripts);
+  const prompt = buildSpeakingPrompt(user, verifiedAnswers, hasAudio);
   const { parsed, modelName, provider } = await callEvaluatorModel([{ text: prompt }, ...audioParts], forceKie);
-  return validateSpeaking(user, answers, parsed, hash, modelName, provider, hasAudio);
+  return validateSpeaking(user, verifiedAnswers, parsed, hash, modelName, provider, hasAudio, verifiedTranscripts);
 }
 
 async function sendPersistedAssessment(res, payload) {
