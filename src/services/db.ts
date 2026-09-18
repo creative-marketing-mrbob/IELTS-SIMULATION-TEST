@@ -126,9 +126,15 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...(options.headers || {})
     }
   });
-  const payload = await response.json().catch(() => null);
+  const text = await response.text();
+  let payload: any = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error('Server mengembalikan respon tidak valid. Silakan refresh halaman atau coba beberapa saat lagi.');
+  }
   if (!response.ok || payload?.success === false) {
-    throw new Error(payload?.error || `Supabase API request failed (${response.status}).`);
+    throw new Error(payload?.error || `Permintaan ke server gagal (${response.status}).`);
   }
   return payload?.data ?? payload;
 }
@@ -195,16 +201,22 @@ class DatabaseService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ whatsapp: whatsappInput, accessCode: accessCodeInput })
       });
-      const payload = await result.json();
-      if (!result.ok || !payload.success) {
-        return { success: false, error: payload.error || 'Nomor WhatsApp atau Access Code tidak cocok.' };
+      const text = await result.text();
+      let payload: any = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        return { success: false, error: 'Gagal terhubung ke server. Silakan refresh halaman atau coba lagi.' };
+      }
+      if (!result.ok || !payload?.success) {
+        return { success: false, error: payload?.error || 'Nomor WhatsApp atau Access Code tidak cocok.' };
       }
       if (payload.sessionToken) {
         localStorage.setItem(CURRENT_SESSION_TOKEN_KEY, payload.sessionToken);
       }
       return { success: true, data: payload.data };
     } catch (err: any) {
-      return { success: false, error: err?.message || 'Supabase resume failed.' };
+      return { success: false, error: err?.message || 'Gagal melanjutkan sesi. Periksa koneksi internet Anda.' };
     }
   }
 
