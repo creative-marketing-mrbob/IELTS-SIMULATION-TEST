@@ -98,10 +98,7 @@ CRITICAL RULES:
 3. Select the HIGHEST band whose positive characteristics are sufficiently supported by actual candidate response evidence.
 4. If performance sits between descriptors, choose the lower fully supported descriptor.
    - Do not infer or optimise toward the candidate's target score. The target score is deliberately excluded from this evaluation.
-5. In descriptorReason, provide a CLEAR, POINT-BY-POINT EXPLANATION for the assigned band:
-   - Part A (Alasan Pemberian Band): Concise points explaining specifically which demonstrated features of the candidate's response justify awarding this band according to Cambridge descriptors.
-   - Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi): Concise points detailing what errors, limitations, or missing elements prevent reaching the next higher band (e.g. "Diberikan Band 5 karena... Belum mencapai Band 6 karena...").
-   Use short, structured sentences or bullet points. Do NOT write long winding paragraphs.
+5. In descriptorReason, write ONE cohesive explanation without Part A/B/C/D labels or separate section headings. In that single explanation, cover why the awarded band fits, what prevents the next band, what keeps it above the lower band, and exact evidence from the response. Use short connected sentences and do NOT write a long winding paragraph.
 6. Provide short, exact quote excerpts in positiveEvidence and limitingEvidence from the candidate text. Do NOT invent sentences the candidate did not write.
 7. If the candidate response is empty or <= 20 words, assign Band 1 or 2 with an underlength warning.
 8. Keep descriptorReason detailed and concise, and feedback practical and constructive.
@@ -134,12 +131,7 @@ CRITICAL RULES:
    - When Audio Evidence Supplied To Model is YES, use the verified audio-only observations supplied with each transcript for individual sound clarity (phonemes), word stress, sentence stress, rhythm, intonation, and intelligibility.
    - Never claim audio or phonological data is unavailable when verified audio observations are supplied.
    - When Audio Evidence Supplied To Model is NO or audio is unreadable, estimate pronunciation score based on speech tempo, fluency markers, and communication coherence with an explicit note in descriptorReason. NEVER return pronunciation.band = null or REQUIRES_TUTOR_EVALUATION.
-8. In descriptorReason for EVERY criterion (fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation), provide a CLEAR, POINT-BY-POINT EXPLANATION:
-   - Part A (Kenapa Kamu Mendapat Band Ini): explain which demonstrated features fit the awarded band.
-   - Part B (Kenapa Belum Naik Band): explain which specific limitations prevent the next band.
-   - Part C (Kenapa Tidak Lebih Rendah): explain which demonstrated ability keeps the score above the lower band.
-   - Part D (Bukti dari Jawaban Kamu): refer only to grounded transcript excerpts or verified phonological observations.
-   Use short, structured sentences or bullet points. Do NOT write long winding paragraphs.
+8. In descriptorReason for EVERY criterion (fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation), write ONE cohesive explanation without Part A/B/C/D labels or separate section headings. In that single explanation, cover in order: why the awarded band fits, what prevents the next band, what keeps it above the lower band, and grounded evidence from the response or verified audio observations. Use short connected sentences, not a long winding paragraph.
    - Write in natural Indonesian using a friendly teacher-to-student voice and the word "kamu". Be warm, direct, and professional. Avoid stiff bureaucratic phrasing, exaggerated praise, slang, ridicule, or discouraging language.
 9. For FC, LR, and GRA, every item in positiveEvidence and limitingEvidence MUST be one short, verbatim excerpt copied from the supplied verified transcript. Put one excerpt per array item. Do not combine quotes, paraphrase, correct grammar, or invent words. For Pronunciation, use concrete audio observations rather than lexical quotes.
 10. Write feedback in the same friendly Indonesian teacher voice. Start by acknowledging one real ability, then give 2-3 concrete practice steps. Keep it honest and actionable.

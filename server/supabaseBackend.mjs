@@ -984,6 +984,8 @@ function stripAutoResults(rawResponses = {}) {
 function sanitizeTutorEvaluation(evaluation, isQa = false, answers = {}, candidate = {}) {
   if (!evaluation) return evaluation;
   const locked = Boolean(evaluation.manualChecks?.isApproved);
+  const writingRevealed = locked || evaluation.manualChecks?.sectionStatuses?.writing?.status === 'SUBMITTED';
+  const speakingRevealed = locked || evaluation.manualChecks?.sectionStatuses?.speaking?.status === 'SUBMITTED';
 
   const rawResponses = { ...(evaluation.rawResponses || {}) };
   const readingRaw = { ...(rawResponses.reading || {}) };
@@ -1039,6 +1041,28 @@ function sanitizeTutorEvaluation(evaluation, isQa = false, answers = {}, candida
     ...rest
   } = evaluation;
 
+  const visibleAiAssessments = {
+    ...(writingRevealed && aiAssessments?.writing ? { writing: aiAssessments.writing } : {}),
+    ...(speakingRevealed && aiAssessments?.speaking ? { speaking: aiAssessments.speaking } : {})
+  };
+  const visibleAiHistory = (aiAssessmentHistory || []).filter(item => (
+    (item?.section === 'writing' && writingRevealed) ||
+    (item?.section === 'speaking' && speakingRevealed)
+  ));
+  const sourceAi = dualComparison?.aiAssessment;
+  const visibleAi = sourceAi ? {
+    ...(writingRevealed ? {
+      writingBand: sourceAi.writingBand,
+      writingDetail: sourceAi.writingDetail
+    } : {}),
+    ...(speakingRevealed ? {
+      speakingBand: sourceAi.speakingBand,
+      speakingDetail: sourceAi.speakingDetail
+    } : {}),
+    ...(writingRevealed && speakingRevealed ? { overallBand: sourceAi.overallBand } : {})
+  } : undefined;
+  const hasVisibleAi = Boolean(visibleAi && Object.keys(visibleAi).length);
+
   return {
     ...rest,
     is_qa: isQa,
@@ -1057,27 +1081,30 @@ function sanitizeTutorEvaluation(evaluation, isQa = false, answers = {}, candida
       correctAnswersList: undefined,
       incorrectAnswersList: undefined
     },
-    writing: {
+    writing: writingRevealed ? rest.writing : {
       band: 'Blind Review',
-      assessmentStatus: 'Awaiting AI Evaluation',
+      assessmentStatus: 'Hidden Until Tutor Submission',
       strengths: [],
       weaknesses: [],
       recommendations: []
     },
-    speaking: {
+    speaking: speakingRevealed ? rest.speaking : {
       band: 'Blind Review',
-      assessmentStatus: 'Awaiting AI Evaluation',
+      assessmentStatus: 'Hidden Until Tutor Submission',
       strengths: [],
       weaknesses: [],
       recommendations: []
     },
+    ...(Object.keys(visibleAiAssessments).length ? { aiAssessments: visibleAiAssessments } : {}),
+    ...(visibleAiHistory.length ? { aiAssessmentHistory: visibleAiHistory } : {}),
     rawResponses: stripAutoResults({
       ...rawResponses,
       reading: filteredReading,
       listening: filteredListening
     }),
-    dualComparison: dualComparison?.tutorAssessment ? {
-      tutorAssessment: dualComparison.tutorAssessment,
+    dualComparison: (dualComparison?.tutorAssessment || hasVisibleAi) ? {
+      ...(dualComparison?.tutorAssessment ? { tutorAssessment: dualComparison.tutorAssessment } : {}),
+      ...(hasVisibleAi ? { aiAssessment: visibleAi } : {}),
       activeMode: 'TUTOR',
       needsManualReview: true
     } : undefined,

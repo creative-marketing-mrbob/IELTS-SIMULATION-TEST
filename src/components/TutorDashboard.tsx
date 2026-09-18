@@ -700,11 +700,6 @@ export const TutorDashboard: React.FC = () => {
           <div className="space-y-5">
             <SectionStatusBanner status={sectionStatus(selected, 'writing')} />
             {selected.manualChecks?.sectionStatuses?.writing?.edited_after_ai_reveal && <BlindCalibrationNotice />}
-            <AiEvaluationBreakdown
-              section="writing"
-              candidate={selected}
-              onReEvaluate={() => handleReEvaluateAi('writing')}
-            />
             <WritingTaskCard
               title="TASK 1"
               prompt={String(writingSection?.parts[0]?.content || '')}
@@ -731,7 +726,6 @@ export const TutorDashboard: React.FC = () => {
               locked={sectionLock('writing')}
             />
             <BandSummary label="Tutor Writing Band" value={tutorWritingBand} />
-            {sectionLock('writing') && <Comparison candidate={selected} section="writing" />}
             <SectionActions
               saveLabel="Save Writing Draft"
               submitLabel="Submit Writing Assessment"
@@ -740,6 +734,18 @@ export const TutorDashboard: React.FC = () => {
               onSubmit={() => persistAssessment('writing', true)}
               onEdit={() => reopenSection('writing')}
             />
+            {sectionLock('writing') ? (
+              <>
+                <AiEvaluationBreakdown
+                  section="writing"
+                  candidate={selected}
+                  onReEvaluate={() => handleReEvaluateAi('writing')}
+                />
+                <Comparison candidate={selected} section="writing" />
+              </>
+            ) : (
+              <BlindAiNotice />
+            )}
           </div>
         )}
 
@@ -750,7 +756,6 @@ export const TutorDashboard: React.FC = () => {
             {speakingReviewItems(selected).map(item => {
               const audio = selected.answers.speaking[item.audioKey as keyof typeof selected.answers.speaking] as string | undefined;
               const duration = selected.answers.speaking[item.durationKey as keyof typeof selected.answers.speaking] as number | undefined;
-              const transcript = selected.answers.speaking[item.transcriptKey as keyof typeof selected.answers.speaking] as string | undefined;
               const fileSize = selected.answers.speaking[item.fileSizeKey as keyof typeof selected.answers.speaking] as number | undefined;
               return (
                 <div key={item.key} className="rounded-3xl border border-[#e6eaf2] bg-white p-4 shadow-soft sm:p-6">
@@ -770,18 +775,9 @@ export const TutorDashboard: React.FC = () => {
                     label={item.label}
                     fallbackDuration={duration}
                   />
-                  <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                    <strong>Transcript:</strong> {transcript || 'No transcript available.'}
-                  </p>
                 </div>
               );
             })}
-
-            <AiEvaluationBreakdown
-              section="speaking"
-              candidate={selected}
-              onReEvaluate={() => handleReEvaluateAi('speaking')}
-            />
 
             <div className="rounded-3xl border border-[#e6eaf2] bg-white p-4 shadow-soft sm:p-6">
               <h3 className="mb-4 text-base font-extrabold text-[#08245c]">Overall Speaking Assessment</h3>
@@ -816,7 +812,6 @@ export const TutorDashboard: React.FC = () => {
               </div>
               <BandSummary label="Tutor Speaking Band" value={tutorSpeakingBand} />
             </div>
-            {sectionLock('speaking') && <Comparison candidate={selected} section="speaking" />}
             <SectionActions
               saveLabel="Save Speaking Draft"
               submitLabel="Submit Speaking Assessment"
@@ -825,6 +820,18 @@ export const TutorDashboard: React.FC = () => {
               onSubmit={() => persistAssessment('speaking', true)}
               onEdit={() => reopenSection('speaking')}
             />
+            {sectionLock('speaking') ? (
+              <>
+                <AiEvaluationBreakdown
+                  section="speaking"
+                  candidate={selected}
+                  onReEvaluate={() => handleReEvaluateAi('speaking')}
+                />
+                <Comparison candidate={selected} section="speaking" />
+              </>
+            ) : (
+              <BlindAiNotice />
+            )}
           </div>
         )}
 
@@ -1052,6 +1059,15 @@ function BlindCalibrationNotice() {
   return (
     <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800">
       Revised After AI Reveal — Excluded from Blind Calibration
+    </div>
+  );
+}
+
+function BlindAiNotice() {
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900">
+      <strong>Penilaian AI akan muncul setelah penilaian tutor disubmit.</strong>{' '}
+      Ini menjaga penilaian tutor tetap independen. Setelah submit, hasil tutor dan AI bisa langsung dibandingkan di bagian bawah.
     </div>
   );
 }

@@ -3,10 +3,6 @@ import { TestEvaluation, CriterionEvidence } from '../../types/ielts';
 import { 
   ChevronDown, 
   ChevronUp, 
-  Award, 
-  CheckCircle2, 
-  AlertCircle, 
-  Lightbulb, 
   Sparkles,
   BookOpen,
   Mic,
@@ -60,6 +56,37 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
     const critEvidence = (candidate.dualComparison?.aiAssessment as any)?.criterion_evidence || (candidate as any).criterion_evidence;
     const critScores = (candidate.dualComparison?.aiAssessment as any)?.criterion_scores;
     const tutorComparisonGuide = spDetail?.tutorComparisonGuide;
+    const hasSpeakingDetail = Boolean(spDetail && [spDetail.fc, spDetail.lr, spDetail.gra, spDetail.pro]
+      .some(item => typeof item?.score === 'number' && item.score >= 1));
+
+    if (!hasSpeakingDetail) {
+      return (
+        <div className="rounded-3xl border border-blue-100 bg-[#f8fbff] p-5 shadow-soft">
+          <h3 className="text-base font-extrabold text-[#08245c]">Penilaian AI Speaking belum tersedia</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Sistem menjalankan penilaian AI otomatis setelah Speaking disubmit. Jika hasilnya belum muncul, prosesnya mungkin masih berjalan atau perlu dicoba ulang.
+          </p>
+          {onReEvaluate && (
+            <button
+              type="button"
+              disabled={isReEvaluating}
+              onClick={async () => {
+                setIsReEvaluating(true);
+                try {
+                  await onReEvaluate();
+                } finally {
+                  setIsReEvaluating(false);
+                }
+              }}
+              className="mt-3 inline-flex items-center space-x-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Sparkles className={`h-3.5 w-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
+              <span>{isReEvaluating ? 'Sedang menilai...' : 'Coba Nilai AI'}</span>
+            </button>
+          )}
+        </div>
+      );
+    }
 
     const getCriterion = (key: string, name: string, detailItem?: CriterionEvidence, evidenceKey?: string): NormalizedCriterion => {
       const fromEv = evidenceKey && critEvidence ? critEvidence[evidenceKey] : null;
@@ -89,8 +116,6 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
     ];
 
     const overallBand = spDetail?.estimatedBand ?? candidate.speaking?.band ?? '-';
-    const verifiedTranscripts = spDetail?.verifiedTranscripts || [];
-    const partRelevance = spDetail?.partRelevance || {};
 
     return (
       <div className="space-y-4 rounded-3xl border border-blue-100 bg-[#f8fbff] p-5 shadow-soft">
@@ -153,67 +178,6 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
           </div>
         </div>
 
-        {verifiedTranscripts.length > 0 && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-            <div>
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center space-x-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-blue-600" />
-                <span>Transkrip Terverifikasi yang Dipakai AI</span>
-              </h4>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Bukti FC, LR, dan GRA harus berupa kutipan yang benar-benar ada di transkrip ini.
-              </p>
-            </div>
-            <div className="space-y-2">
-              {verifiedTranscripts.map(part => {
-                const relevance = partRelevance[part.id];
-                const relevanceLabel = relevance?.status === 'RELEVANT'
-                  ? 'Relevan'
-                  : relevance?.status === 'PARTIALLY_RELEVANT'
-                    ? 'Sebagian relevan'
-                    : relevance?.status === 'OFF_TOPIC'
-                      ? 'Tidak relevan'
-                      : 'Belum diperiksa';
-                const relevanceStyle = relevance?.status === 'RELEVANT'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : relevance?.status === 'PARTIALLY_RELEVANT'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-red-50 text-red-700 border-red-200';
-                return (
-                  <div key={part.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-                      <span className="text-xs font-extrabold text-[#08245c]">{part.label}</span>
-                      <span className={`px-2 py-0.5 rounded-md border text-[10px] font-black uppercase ${relevanceStyle}`}>
-                        {relevanceLabel}
-                      </span>
-                    </div>
-                    <p className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
-                      {part.transcript || '[Tidak ada ucapan yang dapat dikenali]'}
-                    </p>
-                    {part.audioAnalysis && (
-                      <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50/60 p-2 text-[11px] leading-relaxed text-slate-600">
-                        <span className="font-extrabold text-blue-800">Analisis audio:</span>{' '}
-                        {part.audioAnalysis.intelligibility} {part.audioAnalysis.rhythm}{' '}
-                        {part.audioAnalysis.stressIntonation} {part.audioAnalysis.phonemeIssues}
-                      </div>
-                    )}
-                    {relevance?.reason && (
-                      <p className="text-[11px] text-slate-500 mt-1.5">Alasan relevansi: {relevance.reason}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {verifiedTranscripts.length === 0 && spDetail && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900">
-            <span className="font-black">Penilaian lama belum memiliki verifikasi transkrip.</span>{' '}
-            Kutipan dan band pada penilaian ini belum dapat dipastikan berasal dari rekaman. Jalankan Nilai Ulang AI untuk memakai sistem verifikasi baru.
-          </div>
-        )}
-
         {tutorComparisonGuide && (
           <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -239,6 +203,35 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
   const wrDetail = candidate.dualComparison?.aiAssessment?.writingDetail || candidate.writing?.writingDetail;
   const critEvidence = (candidate.dualComparison?.aiAssessment as any)?.criterion_evidence || (candidate as any).criterion_evidence;
   const critScores = (candidate.dualComparison?.aiAssessment as any)?.criterion_scores;
+
+  if (!wrDetail) {
+    return (
+      <div className="rounded-3xl border border-blue-100 bg-[#f8fbff] p-5 shadow-soft">
+        <h3 className="text-base font-extrabold text-[#08245c]">Penilaian AI Writing belum tersedia</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          Sistem menjalankan penilaian AI otomatis setelah Writing disubmit. Jika hasilnya belum muncul, prosesnya mungkin masih berjalan atau perlu dicoba ulang.
+        </p>
+        {onReEvaluate && (
+          <button
+            type="button"
+            disabled={isReEvaluating}
+            onClick={async () => {
+              setIsReEvaluating(true);
+              try {
+                await onReEvaluate();
+              } finally {
+                setIsReEvaluating(false);
+              }
+            }}
+            className="mt-3 inline-flex items-center space-x-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Sparkles className={`h-3.5 w-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
+            <span>{isReEvaluating ? 'Sedang menilai...' : 'Coba Nilai AI'}</span>
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const getCriterion = (key: string, name: string, detailItem?: CriterionEvidence, evidenceKey?: string): NormalizedCriterion => {
     const fromEv = evidenceKey && critEvidence ? critEvidence[evidenceKey] : null;
@@ -408,131 +401,48 @@ function renderCriterionCard(crit: NormalizedCriterion, isExpanded: boolean, onT
       </button>
 
       {isExpanded && (
-        <div className="p-4 pt-1 space-y-3.5 border-t border-slate-100 bg-[#fcfdff] text-xs">
-          {/* ALASAN PENILAIAN (DESCRIPTOR REASON) - POINT BY POINT */}
-          <div className="space-y-2">
-            <div className="flex items-center space-x-1.5 font-black text-blue-900 text-[11px] uppercase tracking-wider">
-              <Award className="w-3.5 h-3.5 text-blue-600" />
-              <span>Alasan Penilaian AI (Cambridge Rubric Descriptors)</span>
+        <div className="border-t border-slate-100 bg-[#fcfdff] p-4 text-xs">
+          <div className="rounded-2xl border border-blue-100 bg-white p-4">
+            <div className="mb-3 text-[11px] font-black uppercase tracking-wider text-blue-900">
+              Penjelasan Penilaian dan Feedback
             </div>
-            <div className="space-y-2">
-              {parseDescriptorReason(crit.descriptorReason, crit.score).map((sec, secIdx) => (
-                <div
-                  key={secIdx}
-                  className={`rounded-2xl border p-3.5 transition-all ${
-                    sec.type === 'award'
-                      ? 'border-blue-200 bg-[#f0f6ff]'
-                      : sec.type === 'limiting'
-                      ? 'border-amber-200 bg-[#fffbeb]'
-                      : 'border-slate-200 bg-[#f8fafc]'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
-                        sec.type === 'award'
-                          ? 'bg-blue-600 text-white'
-                          : sec.type === 'limiting'
-                          ? 'bg-amber-600 text-white'
-                          : 'bg-slate-600 text-white'
-                      }`}
-                    >
-                      {sec.type === 'award' ? '✓ Dasar Penilaian' : sec.type === 'limiting' ? '⚠ Faktor Pembatas' : sec.badge}
-                    </span>
-                    <span className="font-extrabold text-slate-800 text-xs">
-                      {sec.title}
-                    </span>
-                  </div>
-                  <ul className="space-y-1.5 text-xs">
-                    {sec.points.map((pt, ptIdx) => (
-                      <li key={ptIdx} className="flex items-start space-x-2 text-slate-800 font-medium leading-relaxed">
-                        <span
-                          className={`font-black mt-0.5 select-none ${
-                            sec.type === 'award'
-                              ? 'text-blue-600'
-                              : sec.type === 'limiting'
-                              ? 'text-amber-600'
-                              : 'text-slate-500'
-                          }`}
-                        >
-                          •
-                        </span>
-                        <span>{pt}</span>
-                      </li>
-                    ))}
-                  </ul>
+            <div className="space-y-3 text-slate-700">
+              {parseDescriptorReason(crit.descriptorReason, crit.score).map((section, sectionIndex) => (
+                <div key={`reason-${sectionIndex}`}>
+                  <span className="font-extrabold text-slate-900">{section.title}: </span>
+                  <span className="font-medium leading-relaxed">{section.points.join(' ')}</span>
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* BUKTI POSITIF & PEMBATAS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            {/* Positive Evidence */}
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3.5">
-              <div className="flex items-center space-x-1.5 font-black text-emerald-800 mb-2 text-[11px] uppercase tracking-wider">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Bukti Positif dari Respons</span>
-              </div>
-              {crit.positiveEvidence.length > 0 ? (
-                <ul className="space-y-1.5 text-slate-700 font-medium">
-                  {crit.positiveEvidence.flatMap(item => splitTextIntoBulletPoints(item)).map((item, idx) => (
-                    <li key={idx} className="flex items-start space-x-2">
-                      <span className="text-emerald-600 font-black mt-0.5 select-none">•</span>
-                      <span className="leading-relaxed">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-slate-400 italic">Belum ada bukti positif spesifik.</p>
+              {crit.positiveEvidence.length > 0 && (
+                <div>
+                  <span className="font-extrabold text-slate-900">Bukti yang mendukung: </span>
+                  <span className="font-medium leading-relaxed">
+                    {crit.positiveEvidence.flatMap(item => splitTextIntoBulletPoints(item)).join('; ')}
+                  </span>
+                </div>
               )}
-            </div>
-
-            {/* Limiting Evidence */}
-            <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3.5">
-              <div className="flex items-center space-x-1.5 font-black text-amber-900 mb-2 text-[11px] uppercase tracking-wider">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                <span>Faktor Pembatas / Kesalahan</span>
-              </div>
-              {crit.limitingEvidence.length > 0 ? (
-                <ul className="space-y-1.5 text-slate-700 font-medium">
-                  {crit.limitingEvidence.flatMap(item => splitTextIntoBulletPoints(item)).map((item, idx) => (
-                    <li key={idx} className="flex items-start space-x-2">
-                      <span className="text-amber-600 font-black mt-0.5 select-none">•</span>
-                      <span className="leading-relaxed">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-slate-400 italic">Tidak ada pembatas kritis.</p>
+              {crit.limitingEvidence.length > 0 && (
+                <div>
+                  <span className="font-extrabold text-slate-900">Hal yang masih membatasi: </span>
+                  <span className="font-medium leading-relaxed">
+                    {crit.limitingEvidence.flatMap(item => splitTextIntoBulletPoints(item)).join('; ')}
+                  </span>
+                </div>
+              )}
+              {crit.feedback && (
+                <div>
+                  <span className="font-extrabold text-slate-900">Yang perlu kamu latih: </span>
+                  <span className="font-medium leading-relaxed">{splitTextIntoBulletPoints(crit.feedback).join(' ')}</span>
+                </div>
+              )}
+              {crit.tutorPrompt && (
+                <div className="border-t border-slate-100 pt-3">
+                  <span className="font-extrabold text-violet-900">Catatan komparasi tutor: </span>
+                  <span className="font-medium leading-relaxed">{crit.tutorPrompt}</span>
+                </div>
               )}
             </div>
           </div>
-
-          {/* FEEDBACK / REKOMENDASI */}
-          {crit.feedback && (
-            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3.5">
-              <div className="flex items-center space-x-1.5 font-black text-indigo-900 mb-2 text-[11px] uppercase tracking-wider">
-                <Lightbulb className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Saran Peningkatan (Feedback)</span>
-              </div>
-              <ul className="space-y-1.5 text-xs text-slate-800 font-medium">
-                {splitTextIntoBulletPoints(crit.feedback).map((pt, idx) => (
-                  <li key={idx} className="flex items-start space-x-2 leading-relaxed">
-                    <span className="text-indigo-600 font-bold mt-0.5 select-none">•</span>
-                    <span>{pt}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {crit.tutorPrompt && (
-            <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-3.5">
-              <div className="font-black text-violet-900 mb-1.5 text-[11px] uppercase tracking-wider">Pertanyaan Kalibrasi untuk Tutor</div>
-              <p className="text-xs leading-relaxed text-slate-700 font-medium">{crit.tutorPrompt}</p>
-            </div>
-          )}
         </div>
       )}
     </div>
