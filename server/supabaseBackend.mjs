@@ -659,6 +659,7 @@ function speakingDetailFromAiAssessment(assessment) {
     fc, lr, gra, pro,
     verifiedTranscripts: assessment?.raw_ai_response?.verifiedTranscripts || [],
     partRelevance: assessment?.raw_ai_response?.partRelevance || {},
+    tutorComparisonGuide: assessment?.raw_ai_response?.tutorComparisonGuide,
     rawAverage,
     estimatedBand: Number(assessment?.calculated_band ?? assessment?.estimated_band ?? rawAverage)
   };

@@ -105,6 +105,7 @@ CRITICAL RULES:
 6. Provide short, exact quote excerpts in positiveEvidence and limitingEvidence from the candidate text. Do NOT invent sentences the candidate did not write.
 7. If the candidate response is empty or <= 20 words, assign Band 1 or 2 with an underlength warning.
 8. Keep descriptorReason detailed and concise, and feedback practical and constructive.
+9. Write descriptorReason and feedback in natural Indonesian using a friendly teacher-to-student voice and the word "kamu". Explain why the awarded band fits, why it cannot move to the next band, why it is not lower, and cite exact response evidence. Stay warm, direct, professional, and evidence-based; avoid stiff bureaucratic language or exaggerated praise.
 
 Return JSON only with task1.taskAchievement, task1.coherenceCohesion, task1.lexicalResource, task1.grammaticalRangeAccuracy, task2.taskResponse, task2.coherenceCohesion, task2.lexicalResource, task2.grammaticalRangeAccuracy. Each criterion must include band, positiveEvidence, limitingEvidence, descriptorReason, feedback, confidence.
 `;
@@ -134,11 +135,14 @@ CRITICAL RULES:
    - Never claim audio or phonological data is unavailable when verified audio observations are supplied.
    - When Audio Evidence Supplied To Model is NO or audio is unreadable, estimate pronunciation score based on speech tempo, fluency markers, and communication coherence with an explicit note in descriptorReason. NEVER return pronunciation.band = null or REQUIRES_TUTOR_EVALUATION.
 8. In descriptorReason for EVERY criterion (fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation), provide a CLEAR, POINT-BY-POINT EXPLANATION:
-   - Part A (Alasan Pemberian Band): Concise points explaining specifically what features of the candidate's speech justify this band under Cambridge descriptors.
-   - Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi): Concise points detailing what hesitations, grammatical inaccuracies, lexical repetition, or pronunciation features prevent reaching the next higher band (e.g. "Diberikan Band 5 untuk FC karena... Belum mencapai Band 6 karena...").
+   - Part A (Kenapa Kamu Mendapat Band Ini): explain which demonstrated features fit the awarded band.
+   - Part B (Kenapa Belum Naik Band): explain which specific limitations prevent the next band.
+   - Part C (Kenapa Tidak Lebih Rendah): explain which demonstrated ability keeps the score above the lower band.
+   - Part D (Bukti dari Jawaban Kamu): refer only to grounded transcript excerpts or verified phonological observations.
    Use short, structured sentences or bullet points. Do NOT write long winding paragraphs.
+   - Write in natural Indonesian using a friendly teacher-to-student voice and the word "kamu". Be warm, direct, and professional. Avoid stiff bureaucratic phrasing, exaggerated praise, slang, ridicule, or discouraging language.
 9. For FC, LR, and GRA, every item in positiveEvidence and limitingEvidence MUST be one short, verbatim excerpt copied from the supplied verified transcript. Put one excerpt per array item. Do not combine quotes, paraphrase, correct grammar, or invent words. For Pronunciation, use concrete audio observations rather than lexical quotes.
-10. Keep feedback concise and actionable for candidate progression.
+10. Write feedback in the same friendly Indonesian teacher voice. Start by acknowledging one real ability, then give 2-3 concrete practice steps. Keep it honest and actionable.
 
 Return partRelevance as an object keyed by every supplied part id. Each value must contain status exactly RELEVANT, PARTIALLY_RELEVANT, or OFF_TOPIC and a concise reason. Off-topic speech does not demonstrate sufficient topic vocabulary or coherent topic development.
 
@@ -1201,6 +1205,26 @@ function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasA
 
   const rawAverage = (fc.score + lr.score + gra.score + pro.score) / 4;
   const estimatedBand = roundToNearestHalfBand(rawAverage);
+  const tutorComparisonGuide = {
+    version: 'teacher-friendly-rubric-comparison-v1',
+    purpose: 'Membantu tutor membandingkan penilaian AI dengan borang resmi dan memberi alasan koreksi per kriteria.',
+    status: 'AWAITING_TUTOR_COMPARISON',
+    overall: {
+      rawAverage,
+      estimatedBand,
+      calculation: `(${fc.score} + ${lr.score} + ${gra.score} + ${pro.score}) / 4 = ${rawAverage.toFixed(2)}`
+    },
+    criteria: Object.fromEntries([
+      ['FC', fc], ['LR', lr], ['GRA', gra], ['PRO', pro]
+    ].map(([key, item]) => [key, {
+      aiBand: item.score,
+      explanation: item.descriptorMatch,
+      positiveEvidence: item.positiveEvidence,
+      limitingEvidence: item.limitingEvidence,
+      studentFeedback: item.feedback,
+      tutorPrompt: `Apakah Band ${item.score} sudah sepenuhnya cocok dengan ciri positif borang? Jika tidak, tuliskan band tutor, alasan, dan feedback untuk murid.`
+    }]))
+  };
 
   const detail = {
     fc,
@@ -1209,11 +1233,12 @@ function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasA
     pro,
     verifiedTranscripts,
     partRelevance,
+    tutorComparisonGuide,
     rawAverage,
     estimatedBand
   };
 
-  const auditedParsed = { ...parsed, verifiedTranscripts, partRelevance };
+  const auditedParsed = { ...parsed, verifiedTranscripts, partRelevance, tutorComparisonGuide };
 
   const report = {
     band: estimatedBand,
@@ -1237,10 +1262,10 @@ function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasA
     ...baseAssessment(user, 'speaking', auditedParsed, hash, modelName, provider),
     criterion_scores: { FC: fc.score, LR: lr.score, GRA: gra.score, PRO: pro.score },
     criterion_evidence: {
-      FC: { positive: fc.positiveEvidence, limiting: fc.limitingEvidence, descriptorReason: fc.descriptorMatch, feedback: fc.feedback },
-      LR: { positive: lr.positiveEvidence, limiting: lr.limitingEvidence, descriptorReason: lr.descriptorMatch, feedback: lr.feedback },
-      GRA: { positive: gra.positiveEvidence, limiting: gra.limitingEvidence, descriptorReason: gra.descriptorMatch, feedback: gra.feedback },
-      PRO: { positive: pro.positiveEvidence, limiting: pro.limitingEvidence, descriptorReason: pro.descriptorMatch, feedback: pro.feedback }
+      FC: { positive: fc.positiveEvidence, limiting: fc.limitingEvidence, descriptorReason: fc.descriptorMatch, feedback: fc.feedback, tutorComparison: tutorComparisonGuide.criteria.FC },
+      LR: { positive: lr.positiveEvidence, limiting: lr.limitingEvidence, descriptorReason: lr.descriptorMatch, feedback: lr.feedback, tutorComparison: tutorComparisonGuide.criteria.LR },
+      GRA: { positive: gra.positiveEvidence, limiting: gra.limitingEvidence, descriptorReason: gra.descriptorMatch, feedback: gra.feedback, tutorComparison: tutorComparisonGuide.criteria.GRA },
+      PRO: { positive: pro.positiveEvidence, limiting: pro.limitingEvidence, descriptorReason: pro.descriptorMatch, feedback: pro.feedback, tutorComparison: tutorComparisonGuide.criteria.PRO }
     },
     estimated_band: estimatedBand,
     calculated_band: estimatedBand,

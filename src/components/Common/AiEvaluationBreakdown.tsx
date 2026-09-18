@@ -27,6 +27,7 @@ interface NormalizedCriterion {
   positiveEvidence: string[];
   limitingEvidence: string[];
   feedback?: string;
+  tutorPrompt?: string;
 }
 
 export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ section, candidate, onReEvaluate }) => {
@@ -58,6 +59,7 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
     const spDetail = candidate.dualComparison?.aiAssessment?.speakingDetail || candidate.speaking?.speakingDetail;
     const critEvidence = (candidate.dualComparison?.aiAssessment as any)?.criterion_evidence || (candidate as any).criterion_evidence;
     const critScores = (candidate.dualComparison?.aiAssessment as any)?.criterion_scores;
+    const tutorComparisonGuide = spDetail?.tutorComparisonGuide;
 
     const getCriterion = (key: string, name: string, detailItem?: CriterionEvidence, evidenceKey?: string): NormalizedCriterion => {
       const fromEv = evidenceKey && critEvidence ? critEvidence[evidenceKey] : null;
@@ -74,7 +76,8 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
         descriptorReason,
         positiveEvidence,
         limitingEvidence,
-        feedback
+        feedback,
+        tutorPrompt: evidenceKey ? tutorComparisonGuide?.criteria?.[evidenceKey]?.tutorPrompt : undefined
       };
     };
 
@@ -208,6 +211,20 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900">
             <span className="font-black">Penilaian lama belum memiliki verifikasi transkrip.</span>{' '}
             Kutipan dan band pada penilaian ini belum dapat dipastikan berasal dari rekaman. Jalankan Nilai Ulang AI untuk memakai sistem verifikasi baru.
+          </div>
+        )}
+
+        {tutorComparisonGuide && (
+          <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-violet-900">Panduan Komparasi Tutor</h4>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{tutorComparisonGuide.purpose}</p>
+              </div>
+              <span className="rounded-lg border border-violet-200 bg-white px-2.5 py-1 text-xs font-black text-violet-800">
+                {tutorComparisonGuide.overall.calculation} → Band {tutorComparisonGuide.overall.estimatedBand.toFixed(1)}
+              </span>
+            </div>
           </div>
         )}
 
@@ -509,6 +526,13 @@ function renderCriterionCard(crit: NormalizedCriterion, isExpanded: boolean, onT
               </ul>
             </div>
           )}
+
+          {crit.tutorPrompt && (
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-3.5">
+              <div className="font-black text-violet-900 mb-1.5 text-[11px] uppercase tracking-wider">Pertanyaan Kalibrasi untuk Tutor</div>
+              <p className="text-xs leading-relaxed text-slate-700 font-medium">{crit.tutorPrompt}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -550,13 +574,17 @@ export function parseDescriptorReason(rawReason: string, score: number | string)
   const text = rawReason.trim();
 
   // Pattern 1: Part A (Alasan Pemberian Band) & Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi)
-  const partAPattern = /(?:Part\s*A[^\:]*:\s*)([\s\S]*?)(?=(?:Part\s*B[^\:]*:)|$)/i;
-  const partBPattern = /(?:Part\s*B[^\:]*:\s*)([\s\S]*)$/i;
+  const partAPattern = /(?:Part\s*A[^\:]*:\s*)([\s\S]*?)(?=(?:Part\s*[BCD][^\:]*:)|$)/i;
+  const partBPattern = /(?:Part\s*B[^\:]*:\s*)([\s\S]*?)(?=(?:Part\s*[CD][^\:]*:)|$)/i;
+  const partCPattern = /(?:Part\s*C[^\:]*:\s*)([\s\S]*?)(?=(?:Part\s*D[^\:]*:)|$)/i;
+  const partDPattern = /(?:Part\s*D[^\:]*:\s*)([\s\S]*)$/i;
 
   const matchA = text.match(partAPattern);
   const matchB = text.match(partBPattern);
+  const matchC = text.match(partCPattern);
+  const matchD = text.match(partDPattern);
 
-  if (matchA || matchB) {
+  if (matchA || matchB || matchC || matchD) {
     const sections: ParsedReasonSection[] = [];
     if (matchA && matchA[1]?.trim()) {
       sections.push({
@@ -572,6 +600,22 @@ export function parseDescriptorReason(rawReason: string, score: number | string)
         badge: 'Faktor Pembatas',
         type: 'limiting',
         points: splitTextIntoBulletPoints(matchB[1])
+      });
+    }
+    if (matchC && matchC[1]?.trim()) {
+      sections.push({
+        title: 'Kenapa Nilainya Tidak Lebih Rendah',
+        badge: 'Kemampuan yang Sudah Terlihat',
+        type: 'award',
+        points: splitTextIntoBulletPoints(matchC[1])
+      });
+    }
+    if (matchD && matchD[1]?.trim()) {
+      sections.push({
+        title: 'Bukti dari Jawaban Kamu',
+        badge: 'Bukti Respons',
+        type: 'general',
+        points: splitTextIntoBulletPoints(matchD[1])
       });
     }
     if (sections.length > 0) return sections;

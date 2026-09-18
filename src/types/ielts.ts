@@ -265,6 +265,24 @@ export interface SpeakingEvaluationDetail {
     status: 'RELEVANT' | 'PARTIALLY_RELEVANT' | 'OFF_TOPIC';
     reason: string;
   }>;
+  tutorComparisonGuide?: {
+    version: string;
+    purpose: string;
+    status: string;
+    overall: {
+      rawAverage: number;
+      estimatedBand: number;
+      calculation: string;
+    };
+    criteria: Record<string, {
+      aiBand: number;
+      explanation: string;
+      positiveEvidence: string[];
+      limitingEvidence: string[];
+      studentFeedback: string;
+      tutorPrompt: string;
+    }>;
+  };
   rawAverage: number;
   estimatedBand: number;
 }
