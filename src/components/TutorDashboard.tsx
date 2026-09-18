@@ -4,6 +4,7 @@ import {
   UserAnswers,
   ManualVerificationRecord,
   ObjectiveManualCheckItem,
+  SpeakingTutorCriterionFeedback,
   TestEvaluation
 } from '../types/ielts';
 import { cambridgeOfficialTest } from '../data/cambridgeTestBank';
@@ -41,6 +42,24 @@ type WritingScores = {
   task2: { tr: number; cc: number; lr: number; gra: number };
 };
 type SpeakingScores = { fc: number; lr: number; gra: number; pro: number };
+
+const emptySpeakingCriterionFeedback = (): SpeakingTutorCriterionFeedback => ({
+  fc: { reason: '', feedback: '' },
+  lr: { reason: '', feedback: '' },
+  gra: { reason: '', feedback: '' },
+  pro: { reason: '', feedback: '' }
+});
+
+function defaultSpeakingCriterionFeedback(candidate?: TestEvaluation): SpeakingTutorCriterionFeedback {
+  const saved = candidate?.manualChecks?.speaking?.criterionFeedback;
+  const empty = emptySpeakingCriterionFeedback();
+  return {
+    fc: { ...empty.fc, ...saved?.fc },
+    lr: { ...empty.lr, ...saved?.lr },
+    gra: { ...empty.gra, ...saved?.gra },
+    pro: { ...empty.pro, ...saved?.pro }
+  };
+}
 
 const scoreOptions = Array.from({ length: 9 }, (_, index) => index + 1);
 const writingSection = cambridgeOfficialTest.sections.find(section => section.section_type === 'writing');
@@ -167,14 +186,17 @@ function defaultWritingScores(candidate?: TestEvaluation): WritingScores {
 }
 
 function defaultSpeakingScores(candidate?: TestEvaluation): SpeakingScores {
-  return candidate?.manualChecks?.speaking
+  const hasSavedAssessment = Boolean(
+    candidate?.manualChecks?.sectionStatuses?.speaking || candidate?.manualChecks?.isApproved
+  );
+  return candidate?.manualChecks?.speaking && hasSavedAssessment
     ? {
         fc: candidate.manualChecks.speaking.fc,
         lr: candidate.manualChecks.speaking.lr,
         gra: candidate.manualChecks.speaking.gra,
         pro: candidate.manualChecks.speaking.pro
       }
-    : { fc: 6, lr: 6, gra: 6, pro: 6 };
+    : { fc: 0, lr: 0, gra: 0, pro: 0 };
 }
 
 function makeObjectiveChecks(candidate: TestEvaluation, section: 'reading' | 'listening') {
@@ -196,6 +218,7 @@ function selectInput(value: number, onChange: (value: number) => void, locked: b
       onChange={event => onChange(Number(event.target.value))}
       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 disabled:bg-slate-100"
     >
+      <option value={0} disabled>Pilih band</option>
       {scoreOptions.map(option => (
         <option key={option} value={option}>{option}</option>
       ))}
@@ -270,6 +293,7 @@ export const TutorDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TutorTab>('info');
   const [writingScores, setWritingScores] = useState<WritingScores>(defaultWritingScores());
   const [speakingScores, setSpeakingScores] = useState<SpeakingScores>(defaultSpeakingScores());
+  const [speakingCriterionFeedback, setSpeakingCriterionFeedback] = useState<SpeakingTutorCriterionFeedback>(emptySpeakingCriterionFeedback());
   const [readingChecks, setReadingChecks] = useState<Record<number, boolean>>({});
   const [listeningChecks, setListeningChecks] = useState<Record<number, boolean>>({});
   const [playingKey, setPlayingKey] = useState<string | null>(null);
@@ -291,7 +315,9 @@ export const TutorDashboard: React.FC = () => {
   const writingRaw = (writingScores.task1.ta + writingScores.task1.cc + writingScores.task1.lr + writingScores.task1.gra) / 4;
   const task2Raw = (writingScores.task2.tr + writingScores.task2.cc + writingScores.task2.lr + writingScores.task2.gra) / 4;
   const tutorWritingBand = roundToNearestHalfBand((writingRaw + 2 * task2Raw) / 3);
-  const tutorSpeakingBand = roundToNearestHalfBand((speakingScores.fc + speakingScores.lr + speakingScores.gra + speakingScores.pro) / 4);
+  const tutorSpeakingBand = Object.values(speakingScores).every(score => score >= 1)
+    ? roundToNearestHalfBand((speakingScores.fc + speakingScores.lr + speakingScores.gra + speakingScores.pro) / 4)
+    : 0;
 
   const refreshTutorSubmissions = async () => {
     const all = await dbService.getTutorCandidates();
@@ -319,6 +345,7 @@ export const TutorDashboard: React.FC = () => {
     setActiveTab('info');
     setWritingScores(defaultWritingScores(candidate));
     setSpeakingScores(defaultSpeakingScores(candidate));
+    setSpeakingCriterionFeedback(defaultSpeakingCriterionFeedback(candidate));
     setReadingChecks(makeObjectiveChecks(candidate, 'reading'));
     setListeningChecks(makeObjectiveChecks(candidate, 'listening'));
     setPlayingKey(null);
@@ -351,6 +378,24 @@ export const TutorDashboard: React.FC = () => {
 
   const persistAssessment = async (section: TutorSectionKey, submitAndLock: boolean) => {
     if (!selected) return;
+    if (section === 'speaking' && submitAndLock) {
+      if (Object.values(speakingScores).some(score => score < 1 || score > 9)) {
+        alert('Pilih band untuk FC, LR, GRA, dan Pronunciation sebelum submit.');
+        return;
+      }
+      const incompleteCriterion = (Object.entries(speakingCriterionFeedback) as Array<[keyof SpeakingTutorCriterionFeedback, { reason: string; feedback: string }]>)
+        .find(([, value]) => !value.reason.trim() || !value.feedback.trim());
+      if (incompleteCriterion) {
+        const labels: Record<keyof SpeakingTutorCriterionFeedback, string> = {
+          fc: 'Fluency & Coherence',
+          lr: 'Lexical Resource',
+          gra: 'Grammatical Range & Accuracy',
+          pro: 'Pronunciation'
+        };
+        alert(`Lengkapi alasan penilaian dan feedback tutor untuk ${labels[incompleteCriterion[0]]} sebelum submit.`);
+        return;
+      }
+    }
     if (submitAndLock && !window.confirm('Submit assessment section ini? Setelah submit, section ini terkunci untuk blind calibration.')) {
       return;
     }
@@ -423,7 +468,7 @@ export const TutorDashboard: React.FC = () => {
         tutorBand: listeningBand
       },
       writing: { ...writingScores, tutorBand: tutorWritingBand },
-      speaking: { ...speakingScores, tutorBand: tutorSpeakingBand },
+      speaking: { ...speakingScores, tutorBand: tutorSpeakingBand, criterionFeedback: speakingCriterionFeedback },
       tutorOverallBand: overallBand,
       evaluatorName: 'IELTS Tutor',
       checkedAt: savedAt,
@@ -442,7 +487,7 @@ export const TutorDashboard: React.FC = () => {
             snapshot: section === 'writing'
               ? writingScores
               : section === 'speaking'
-                ? speakingScores
+                ? { scores: speakingScores, criterionFeedback: speakingCriterionFeedback }
                 : section === 'reading'
                   ? readingChecks
                   : listeningChecks
@@ -460,7 +505,8 @@ export const TutorDashboard: React.FC = () => {
         speakingBand: tutorSpeakingBand,
         overallBand,
         writingDetail: writingResult.detail,
-        speakingDetail: speakingResult.detail
+        speakingDetail: speakingResult.detail,
+        speakingCriterionFeedback
       },
       activeMode: 'TUTOR' as const,
       needsManualReview: !isFullyApproved,
@@ -739,11 +785,34 @@ export const TutorDashboard: React.FC = () => {
 
             <div className="rounded-3xl border border-[#e6eaf2] bg-white p-4 shadow-soft sm:p-6">
               <h3 className="mb-4 text-base font-extrabold text-[#08245c]">Overall Speaking Assessment</h3>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <ScoreField label="Fluency & Coherence" value={speakingScores.fc} locked={sectionLock('speaking')} onChange={value => setSpeakingScores(prev => ({ ...prev, fc: value }))} />
-                <ScoreField label="Lexical Resource" value={speakingScores.lr} locked={sectionLock('speaking')} onChange={value => setSpeakingScores(prev => ({ ...prev, lr: value }))} />
-                <ScoreField label="Grammar" value={speakingScores.gra} locked={sectionLock('speaking')} onChange={value => setSpeakingScores(prev => ({ ...prev, gra: value }))} />
-                <ScoreField label="Pronunciation" value={speakingScores.pro} locked={sectionLock('speaking')} onChange={value => setSpeakingScores(prev => ({ ...prev, pro: value }))} />
+              <p className="mb-4 text-sm leading-6 text-slate-600">
+                Berikan skor, alasan berbasis bukti dari rekaman, dan feedback yang dapat dilakukan peserta. Data ini disimpan sebagai bahan kalibrasi penilaian AI dan tutor.
+              </p>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {([
+                  ['fc', 'Fluency & Coherence (FC)'],
+                  ['lr', 'Lexical Resource (LR)'],
+                  ['gra', 'Grammatical Range & Accuracy (GRA)'],
+                  ['pro', 'Pronunciation (PRO)']
+                ] as Array<[keyof SpeakingScores, string]>).map(([key, label]) => (
+                  <SpeakingCriterionField
+                    key={key}
+                    label={label}
+                    value={speakingScores[key]}
+                    reason={speakingCriterionFeedback[key].reason}
+                    feedback={speakingCriterionFeedback[key].feedback}
+                    locked={sectionLock('speaking')}
+                    onScoreChange={value => setSpeakingScores(prev => ({ ...prev, [key]: value }))}
+                    onReasonChange={reason => setSpeakingCriterionFeedback(prev => ({
+                      ...prev,
+                      [key]: { ...prev[key], reason }
+                    }))}
+                    onFeedbackChange={feedback => setSpeakingCriterionFeedback(prev => ({
+                      ...prev,
+                      [key]: { ...prev[key], feedback }
+                    }))}
+                  />
+                ))}
               </div>
               <BandSummary label="Tutor Speaking Band" value={tutorSpeakingBand} />
             </div>
@@ -1048,11 +1117,62 @@ function ScoreField({ label, value, onChange, locked }: { label: string; value: 
   );
 }
 
+function SpeakingCriterionField({
+  label,
+  value,
+  reason,
+  feedback,
+  locked,
+  onScoreChange,
+  onReasonChange,
+  onFeedbackChange
+}: {
+  label: string;
+  value: number;
+  reason: string;
+  feedback: string;
+  locked: boolean;
+  onScoreChange: (value: number) => void;
+  onReasonChange: (value: string) => void;
+  onFeedbackChange: (value: string) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <label className="block space-y-1">
+        <span className="text-xs font-black text-[#08245c]">{label}</span>
+        {selectInput(value, onScoreChange, locked)}
+      </label>
+      <label className="mt-4 block space-y-1">
+        <span className="text-[11px] font-black uppercase tracking-wide text-slate-500">Alasan dan bukti penilaian</span>
+        <textarea
+          value={reason}
+          disabled={locked}
+          onChange={event => onReasonChange(event.target.value)}
+          rows={4}
+          placeholder="Jelaskan bukti dari rekaman dan alasan skor ini diberikan."
+          className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+        />
+      </label>
+      <label className="mt-3 block space-y-1">
+        <span className="text-[11px] font-black uppercase tracking-wide text-slate-500">Feedback untuk peserta</span>
+        <textarea
+          value={feedback}
+          disabled={locked}
+          onChange={event => onFeedbackChange(event.target.value)}
+          rows={3}
+          placeholder="Tuliskan langkah perbaikan yang spesifik dan dapat dilakukan peserta."
+          className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+        />
+      </label>
+    </div>
+  );
+}
+
 function BandSummary({ label, value }: { label: string; value: number }) {
   return (
     <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-right">
       <span className="mr-3 text-xs font-black uppercase text-blue-700">{label}</span>
-      <strong className="text-2xl text-[#08245c]">{value.toFixed(1)}</strong>
+      <strong className="text-2xl text-[#08245c]">{value > 0 ? value.toFixed(1) : 'Belum lengkap'}</strong>
     </div>
   );
 }

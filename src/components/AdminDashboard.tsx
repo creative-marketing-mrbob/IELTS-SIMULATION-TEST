@@ -467,7 +467,8 @@ export const AdminDashboard: React.FC<{ mode?: AdminDashboardMode }> = ({ mode =
       wRes.success ? "Writing sudah dinilai AI" : `Writing belum berhasil dinilai (${wRes.error})`,
       sRes.success ? (sRes.assessment?.evaluation_status === 'PARTIALLY EVALUATED' ? "Speaking sudah dinilai sebagian; pronunciation tetap dicek tutor" : "Speaking sudah dinilai AI") : `Speaking belum berhasil dinilai (${sRes.error})`
     ];
-    setAiStatusMessage(`✅ ${statusParts.join(' | ')}`);
+    const statusPrefix = wRes.success && sRes.success ? '✅' : '⚠️';
+    setAiStatusMessage(`${statusPrefix} ${statusParts.join(' | ')}`);
   };
 
   // Toggle tutor check for Reading Q

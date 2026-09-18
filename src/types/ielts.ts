@@ -201,6 +201,7 @@ export interface ManualVerificationRecord {
     pro: number;
     tutorBand: number;
     tutorNotes?: string;
+    criterionFeedback?: SpeakingTutorCriterionFeedback;
   };
   tutorOverallBand: number;
   evaluatorName: string;
@@ -222,6 +223,16 @@ export interface ManualVerificationRecord {
     snapshot: unknown;
   }>>>;
 }
+
+export interface TutorCriterionFeedback {
+  reason: string;
+  feedback: string;
+}
+
+export type SpeakingTutorCriterionFeedback = Record<
+  'fc' | 'lr' | 'gra' | 'pro',
+  TutorCriterionFeedback
+>;
 
 export interface CriterionEvidence {
   criterion: string;
@@ -321,6 +332,7 @@ export interface DualAssessmentComparison {
     overallBand: number | string;
     speakingDetail?: SpeakingEvaluationDetail;
     writingDetail?: WritingEvaluationDetail;
+    speakingCriterionFeedback?: SpeakingTutorCriterionFeedback;
   };
   bandDifference?: number;
   needsManualReview?: boolean;

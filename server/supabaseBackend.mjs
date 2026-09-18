@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import './loadEnv.mjs';
-import { evaluateCandidateSection, getStaffRole, isAdminSessionValid, isStaffSessionValid, persistAiAssessment } from './aiEvaluatorEndpoint.mjs';
+import { aiInputHash, evaluateCandidateSection, getStaffRole, isAdminSessionValid, isStaffSessionValid, persistAiAssessment } from './aiEvaluatorEndpoint.mjs';
 
 const BUCKET = 'speaking-recordings';
 const SESSION_DAYS = 30;
@@ -403,7 +403,14 @@ async function saveEvaluation(data) {
         writing_tutor_band: evaluation.manualChecks.writing?.tutorBand ?? null,
         speaking_ai_band: typeof evaluation.dualComparison?.aiAssessment?.speakingBand === 'number' ? evaluation.dualComparison.aiAssessment.speakingBand : null,
         speaking_tutor_band: evaluation.manualChecks.speaking?.tutorBand ?? null,
-        calibration_json: evaluation.dualComparison || {},
+        calibration_json: {
+          comparison: evaluation.dualComparison || {},
+          tutor_criterion_feedback: {
+            writing: evaluation.manualChecks.writing?.criterionFeedback || null,
+            speaking: evaluation.manualChecks.speaking?.criterionFeedback || null
+          },
+          rubric_version: 'IELTS-Cambridge-Descriptors-2026.1'
+        },
         created_at: new Date().toISOString()
       }, 'result_id');
     }
@@ -1081,11 +1088,20 @@ async function updateTutorAssessment(body, role) {
   }
 
   const sectionStatuses = updatedFields.manualChecks.sectionStatuses || {};
-  const submitAndLock = Object.values(sectionStatuses).some(item => item?.status === 'SUBMITTED') || Boolean(updatedFields.manualChecks.isApproved);
+  const previousSectionStatuses = existing.evaluation.manualChecks?.sectionStatuses || {};
+  const newlySubmittedSections = Object.entries(sectionStatuses)
+    .filter(([section, item]) => item?.status === 'SUBMITTED' && (
+      previousSectionStatuses[section]?.status !== 'SUBMITTED' ||
+      previousSectionStatuses[section]?.revision !== item?.revision
+    ))
+    .map(([section]) => section);
+  const submitAndLock = newlySubmittedSections.length > 0 || (
+    Boolean(updatedFields.manualChecks.isApproved) && !existing.evaluation.manualChecks?.isApproved
+  );
 
   if (submitAndLock) {
     const checks = updatedFields.manualChecks || {};
-    if (sectionStatuses.writing?.status === 'SUBMITTED') {
+    if (newlySubmittedSections.includes('writing')) {
       const w1 = checks.writing?.task1;
       const w2 = checks.writing?.task2;
       if (!w1 || typeof w1.ta !== 'number' || typeof w1.cc !== 'number' || typeof w1.lr !== 'number' || typeof w1.gra !== 'number') {
@@ -1096,16 +1112,32 @@ async function updateTutorAssessment(body, role) {
       }
     }
 
-    if (sectionStatuses.speaking?.status === 'SUBMITTED') {
+    if (newlySubmittedSections.includes('speaking')) {
       const spk = checks.speaking || {};
-      if (typeof spk.fc !== 'number') throw new Error('Speaking Fluency & Coherence belum dinilai.');
-      if (typeof spk.lr !== 'number') throw new Error('Speaking Lexical Resource belum dinilai.');
-      if (typeof spk.gra !== 'number') throw new Error('Speaking Grammar belum dinilai.');
-      if (typeof spk.pro !== 'number') throw new Error('Speaking Pronunciation belum dinilai.');
+      const validBand = value => typeof value === 'number' && value >= 1 && value <= 9;
+      if (!validBand(spk.fc)) throw new Error('Speaking Fluency & Coherence belum dinilai.');
+      if (!validBand(spk.lr)) throw new Error('Speaking Lexical Resource belum dinilai.');
+      if (!validBand(spk.gra)) throw new Error('Speaking Grammar belum dinilai.');
+      if (!validBand(spk.pro)) throw new Error('Speaking Pronunciation belum dinilai.');
+      const feedback = spk.criterionFeedback || {};
+      const labels = {
+        fc: 'Fluency & Coherence',
+        lr: 'Lexical Resource',
+        gra: 'Grammatical Range & Accuracy',
+        pro: 'Pronunciation'
+      };
+      for (const [key, label] of Object.entries(labels)) {
+        if (!String(feedback[key]?.reason || '').trim()) {
+          throw new Error(`Alasan penilaian ${label} belum diisi.`);
+        }
+        if (!String(feedback[key]?.feedback || '').trim()) {
+          throw new Error(`Feedback tutor untuk ${label} belum diisi.`);
+        }
+      }
     }
 
     const requiredObjectiveCount = isQa ? 5 : 40;
-    if (sectionStatuses.reading?.status === 'SUBMITTED') {
+    if (newlySubmittedSections.includes('reading')) {
       const readingChecks = checks.reading?.checks || {};
       for (let q = 1; q <= requiredObjectiveCount; q++) {
         const val = readingChecks[q];
@@ -1116,7 +1148,7 @@ async function updateTutorAssessment(body, role) {
       }
     }
 
-    if (sectionStatuses.listening?.status === 'SUBMITTED') {
+    if (newlySubmittedSections.includes('listening')) {
       const listeningChecks = checks.listening?.checks || {};
       for (let q = 1; q <= requiredObjectiveCount; q++) {
         const val = listeningChecks[q];
@@ -1226,7 +1258,7 @@ async function autoEvaluateSection(req, body) {
     : existing.answers?.speaking || {};
 
   const latestActive = (await select('ai_assessments', `?result_id=eq.${encodeURIComponent(resultId)}&section=eq.${encodeURIComponent(section)}&is_active=eq.true&order=evaluation_timestamp.desc&limit=1`))?.[0];
-  const currentHash = crypto.createHash('sha256').update(JSON.stringify({ section, user, answers })).digest('hex');
+  const currentHash = aiInputHash(section, user, answers);
   if (!body?.force && latestActive?.input_hash === currentHash && latestActive.status === 'AI EVALUATED') {
     return { success: true, skipped: true, status: latestActive.status };
   }

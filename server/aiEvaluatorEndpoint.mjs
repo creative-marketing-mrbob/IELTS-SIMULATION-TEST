@@ -5,7 +5,7 @@ const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
 const DEFAULT_KIE_MODEL = 'gemini-3-5-flash-openai';
 const KIE_BASE_URL = 'https://api.kie.ai';
 const RUBRIC_VERSION = 'IELTS-Cambridge-Descriptors-2026.1';
-const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-04-strict-descriptors';
+const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-18-complete-speaking-evidence';
 
 const writingTask1 = {
   content: `The chart below shows the average monthly change in the prices of three metals (copper, nickel, and zinc) during 2014.
@@ -78,6 +78,9 @@ Evaluate the candidate's IELTS Speaking performance across the entire performanc
 CRITICAL RULES:
 1. Apply the official IELTS Speaking Band Descriptors strictly. A candidate must fully fit the positive features of a band before receiving that band.
 2. Rate the average performance across all supplied parts, but penalize missing, extremely short, off-topic, memorised, or non-communicative responses.
+   - Do not infer language ability from recording duration or from a note saying that a recording exists.
+   - Assess only language you can actually hear in attached audio or read in an exact transcript.
+   - Explicitly compare each response with its prompt. If a response is unrelated, state that in the evidence and reduce FC and LR accordingly.
 3. Band 5 is NOT a default middle score. Only award Band 5+ when the candidate usually keeps going, produces more than isolated/simple responses, has enough vocabulary for the topic, and shows rateable sentence control.
 4. If answers are mostly "I don't know", "no idea", unrelated words, repeated filler, silence, laughter/noise, or do not answer the prompt, treat the response as non-communicative and assign Band 1 for FC, LR, GRA, and Pronunciation.
 5. If the whole performance is a few isolated words, wholly unrelated to the prompts, or has virtually no communicative meaning, assign Band 1 for all criteria.
@@ -436,8 +439,48 @@ async function storagePathToGeminiPart(label, storagePath, isKie = false) {
   ];
 }
 
+function speakingAudioSpecs(answers = {}) {
+  if (isQaSpeakingAnswers(answers)) {
+    return qaSpeakingPromptItems.map(([label, key]) => ({
+      label,
+      audio: answers[`${key}_audio`]
+    }));
+  }
+  return [
+    { label: 'Part 1 interview audio', audio: answers.part1Audio },
+    { label: 'Part 2 cue card audio', audio: answers.part2Audio },
+    { label: 'Part 3 discussion audio', audio: answers.part3Audio }
+  ];
+}
+
+async function loadCompleteSpeakingAudio(answers, isKie) {
+  const specs = speakingAudioSpecs(answers);
+  const missing = specs.filter(item => !item.audio).map(item => item.label);
+  if (missing.length) {
+    throw new Error(`AI Speaking evaluation dibatalkan karena rekaman belum lengkap: ${missing.join(', ')}.`);
+  }
+
+  const loaded = await Promise.all(specs.map(async item => {
+    const parts = typeof item.audio === 'string' && item.audio.startsWith('data:')
+      ? dataUrlToGeminiPart(item.label, item.audio, isKie)
+      : await storagePathToGeminiPart(item.label, item.audio, isKie);
+    return { ...item, parts };
+  }));
+  const unreadable = loaded
+    .filter(item => !item.parts.some(part => part.inline_data))
+    .map(item => item.label);
+  if (unreadable.length) {
+    throw new Error(`AI Speaking evaluation dibatalkan karena rekaman tidak dapat dibaca atau formatnya tidak didukung: ${unreadable.join(', ')}.`);
+  }
+  return loaded.flatMap(item => item.parts);
+}
+
 function inputHash(payload) {
-  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  return crypto.createHash('sha256').update(JSON.stringify({
+    rubricVersion: RUBRIC_VERSION,
+    promptVersion: PROMPT_VERSION,
+    ...payload
+  })).digest('hex');
 }
 
 function baseAssessment(user, section, parsed, hash, modelName, provider = 'google-gemini') {
@@ -511,7 +554,7 @@ function formatSpeakingTranscript(transcript, duration) {
   }
   const dur = Number(duration || 0);
   if (dur > 0) {
-    return `[Candidate successfully recorded and submitted spoken response (${dur} seconds). Spoken answers completed by candidate.]`;
+    return `[No transcript available. Evaluate the attached audio for this part. Recorded duration: ${dur} seconds. Duration is not evidence of language quality.]`;
   }
   return '(No recording or transcript submitted)';
 }
@@ -619,6 +662,16 @@ function looksLikeNativeGoogleApiKey(key = '') {
   return String(key).trim().startsWith('AIza');
 }
 
+function shouldUseKie(forceKie = false) {
+  const providerOverride = process.env.AI_EVALUATOR_PROVIDER?.toLowerCase();
+  const geminiKey = process.env.GEMINI_API_KEY || '';
+  const hasNativeGoogleKey = looksLikeNativeGoogleApiKey(geminiKey);
+  const hasKieCredential = Boolean(process.env.KIE_API_KEY || process.env.KIE_API_KEYS || (geminiKey && !hasNativeGoogleKey));
+  return forceKie || providerOverride === 'kie' || (
+    providerOverride !== 'google' && !hasNativeGoogleKey && hasKieCredential
+  );
+}
+
 function audioFormatFromMimeType(mimeType = '') {
   const type = String(mimeType).toLowerCase();
   if (type.includes('wav')) return 'wav';
@@ -710,11 +763,9 @@ async function callKie(parts, apiKey, modelName) {
 }
 
 async function callEvaluatorModel(parts, forceKie) {
-  const providerOverride = process.env.AI_EVALUATOR_PROVIDER?.toLowerCase();
   const geminiKey = process.env.GEMINI_API_KEY || '';
-  const hasDedicatedKieKey = Boolean(process.env.KIE_API_KEY || process.env.KIE_API_KEYS);
   const shouldTreatGeminiKeyAsKieKey = Boolean(geminiKey && !looksLikeNativeGoogleApiKey(geminiKey));
-  const useKie = forceKie || providerOverride === 'kie' || hasDedicatedKieKey || shouldTreatGeminiKeyAsKieKey;
+  const useKie = shouldUseKie(forceKie);
   const kieKeys = getKieApiKeys(useKie && shouldTreatGeminiKeyAsKieKey);
 
   if (useKie) {
@@ -722,8 +773,20 @@ async function callEvaluatorModel(parts, forceKie) {
       throw new Error('server KIE_API_KEY is not configured.');
     }
     const modelName = process.env.KIE_MODEL_NAME || DEFAULT_KIE_MODEL;
-    const parsed = await callKie(parts, kieKeys[0], modelName);
-    return { parsed, modelName, provider: 'kie.ai' };
+    let lastError = null;
+    for (const kieKey of kieKeys) {
+      try {
+        const parsed = await callKie(parts, kieKey, modelName);
+        return { parsed, modelName, provider: 'kie.ai' };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    const detail = lastError instanceof Error ? lastError.message : 'Provider error';
+    if (/500|maintain|maintenance/i.test(detail)) {
+      throw new Error('Layanan AI KIE sedang maintenance. Penilaian lama tidak diubah; silakan coba Nilai Ulang AI beberapa saat lagi.');
+    }
+    throw lastError || new Error('KIE AI evaluation failed.');
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -951,35 +1014,10 @@ export async function evaluateCandidateSection(section, user, answers, forceKie 
     return validateWriting(user, answers, parsed, hash, modelName, provider);
   }
 
-  const isKie = forceKie || process.env.AI_EVALUATOR_PROVIDER?.toLowerCase() === 'kie' || Boolean(process.env.KIE_API_KEY || process.env.KIE_API_KEYS) || (Boolean(process.env.GEMINI_API_KEY) && !looksLikeNativeGoogleApiKey(process.env.GEMINI_API_KEY));
+  const isKie = shouldUseKie(forceKie);
 
-  const qaAudioParts = qaSpeakingPromptItems.flatMap(([label, key]) => [
-    ...dataUrlToGeminiPart(`${label} audio`, answers[`${key}_audio`], isKie)
-  ]);
-  const qaStorageAudioParts = (await Promise.all(qaSpeakingPromptItems.map(([label, key]) => (
-    storagePathToGeminiPart(`${label} audio`, answers[`${key}_audio`], isKie)
-  )))).flat();
-  const primaryAudioPath = answers.part2Audio || answers.part1Audio || answers.part3Audio;
-  const primaryDataUrl = (typeof answers.part2Audio === 'string' && answers.part2Audio.startsWith('data:')) ? answers.part2Audio
-    : ((typeof answers.part1Audio === 'string' && answers.part1Audio.startsWith('data:')) ? answers.part1Audio : answers.part3Audio);
-
-  const productionAudioParts = isKie
-    ? [
-        ...dataUrlToGeminiPart('Part 2 (Cue Card Monologue) audio', primaryDataUrl, isKie),
-        ...(await storagePathToGeminiPart('Part 2 (Cue Card Monologue) audio', primaryAudioPath, isKie))
-      ]
-    : [
-        ...dataUrlToGeminiPart('Part 1 audio', answers.part1Audio, isKie),
-        ...dataUrlToGeminiPart('Part 2 audio', answers.part2Audio, isKie),
-        ...dataUrlToGeminiPart('Part 3 audio', answers.part3Audio, isKie),
-        ...(await storagePathToGeminiPart('Part 1 audio', answers.part1Audio, isKie)),
-        ...(await storagePathToGeminiPart('Part 2 audio', answers.part2Audio, isKie)),
-        ...(await storagePathToGeminiPart('Part 3 audio', answers.part3Audio, isKie))
-      ];
-  const audioParts = isQaSpeakingAnswers(answers)
-    ? [...qaAudioParts, ...qaStorageAudioParts]
-    : productionAudioParts;
-  const hasAudio = audioParts.some(part => part.inline_data);
+  const audioParts = await loadCompleteSpeakingAudio(answers, isKie);
+  const hasAudio = true;
   const prompt = buildSpeakingPrompt(user, answers, hasAudio);
   const { parsed, modelName, provider } = await callEvaluatorModel([{ text: prompt }, ...audioParts], forceKie);
   return validateSpeaking(user, answers, parsed, hash, modelName, provider, hasAudio);
