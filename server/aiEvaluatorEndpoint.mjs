@@ -545,7 +545,12 @@ const qaSpeakingPromptItems = [
 ];
 
 function isQaSpeakingAnswers(answers = {}) {
-  return qaSpeakingPromptItems.some(([, key]) => answers[`${key}_audio`] || answers[`${key}_duration`] || answers[`${key}_transcript`]);
+  // Part 2 field names are shared by old production data and QA data, so they
+  // cannot identify the five-question QA format on their own.
+  const qaOnlyKeys = ['part1_q1', 'part1_q2', 'part3_q1', 'part3_q2'];
+  return qaOnlyKeys.some(key => (
+    answers[`${key}_audio`] || answers[`${key}_duration`] || answers[`${key}_transcript`]
+  ));
 }
 
 function formatSpeakingTranscript(transcript, duration) {
