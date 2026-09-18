@@ -638,6 +638,32 @@ function buildInitialEvaluation(candidate, answers, progress) {
   };
 }
 
+function speakingDetailFromAiAssessment(assessment) {
+  const scores = assessment?.criterion_scores || {};
+  const evidence = assessment?.criterion_evidence || {};
+  const criterion = (key, name) => ({
+    criterion: name,
+    score: Number(scores[key] || 0),
+    positiveEvidence: Array.isArray(evidence[key]?.positive) ? evidence[key].positive : [],
+    limitingEvidence: Array.isArray(evidence[key]?.limiting) ? evidence[key].limiting : [],
+    descriptorMatch: evidence[key]?.descriptorReason || '',
+    feedback: evidence[key]?.feedback || '',
+    confidence: assessment?.confidence === 'LOW' ? 'Low' : assessment?.confidence === 'MEDIUM' ? 'Medium' : 'High'
+  });
+  const fc = criterion('FC', 'Fluency and Coherence (FC)');
+  const lr = criterion('LR', 'Lexical Resource (LR)');
+  const gra = criterion('GRA', 'Grammatical Range and Accuracy (GRA)');
+  const pro = criterion('PRO', 'Pronunciation (PRO)');
+  const rawAverage = (fc.score + lr.score + gra.score + pro.score) / 4;
+  return {
+    fc, lr, gra, pro,
+    verifiedTranscripts: assessment?.raw_ai_response?.verifiedTranscripts || [],
+    partRelevance: assessment?.raw_ai_response?.partRelevance || {},
+    rawAverage,
+    estimatedBand: Number(assessment?.calculated_band ?? assessment?.estimated_band ?? rawAverage)
+  };
+}
+
 async function hydrateCandidate(candidateId) {
   const candidates = await select('candidates', `?candidate_id=eq.${encodeURIComponent(candidateId)}&limit=1`);
   const row = candidates?.[0];
@@ -794,10 +820,18 @@ async function hydrateCandidate(candidateId) {
     }
 
     if (activeSpeaking && typeof activeSpeaking.calculated_band === 'number') {
+      const speakingDetail = speakingDetailFromAiAssessment(activeSpeaking);
       evaluation.speaking = {
         ...(evaluation.speaking || {}),
         band: activeSpeaking.calculated_band,
-        assessmentStatus: 'AI Evaluated'
+        assessmentStatus: 'AI Evaluated',
+        speakingDetail
+      };
+      evaluation.dualComparison = evaluation.dualComparison || { activeMode: 'AI' };
+      evaluation.dualComparison.aiAssessment = {
+        ...(evaluation.dualComparison.aiAssessment || {}),
+        speakingBand: activeSpeaking.calculated_band,
+        speakingDetail
       };
     }
 

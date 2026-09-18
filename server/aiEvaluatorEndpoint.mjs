@@ -5,7 +5,7 @@ const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
 const DEFAULT_KIE_MODEL = 'gemini-3-5-flash-openai';
 const KIE_BASE_URL = 'https://api.kie.ai';
 const RUBRIC_VERSION = 'IELTS-Cambridge-Descriptors-2026.1';
-const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-19-verified-audio-observations';
+const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-19-official-band6-gates';
 
 const officialSpeakingDescriptors = `
 OFFICIAL IELTS SPEAKING BAND DESCRIPTORS (supplied assessment form):
@@ -1139,6 +1139,35 @@ function applySpeakingRelevanceCaps(criteria, partRelevance) {
   };
 }
 
+function applySpeakingBandSixGates(criteria, verifiedTranscripts) {
+  const rateable = verifiedTranscripts.filter(item => item.rateable && item.audioAnalysis);
+  const majority = Math.ceil(Math.max(rateable.length, 1) / 2);
+  const severeFluencyPattern = /quite choppy|halting|significant paus|frequent hesitation|frequent paus|irregular.*(?:pause|chunk)|patah[-\s]?patah/i;
+  const weakPhonologyPattern = /flat|monotone|narrow pitch|limited pitch|weak.*stress|lack.*stress|minimal.*pitch|intonation.*not.*sustain/i;
+  const severeFluencyParts = rateable.filter(item => severeFluencyPattern.test(item.audioAnalysis.rhythm)).length;
+  const weakPhonologyParts = rateable.filter(item => (
+    weakPhonologyPattern.test(item.audioAnalysis.stressIntonation)
+    || severeFluencyPattern.test(item.audioAnalysis.rhythm)
+  )).length;
+
+  let { fc, lr, gra, pro } = criteria;
+  if (fc.score >= 6 && severeFluencyParts >= majority) {
+    fc = capCriterion(fc, 5, 'Band 6 FC requires sustained long turns with only occasional coherence loss. Verified audio shows choppy or halting delivery with significant pausing in most parts, which fully fits Band 5 rather than Band 6.');
+  }
+
+  const lrReview = `${lr.descriptorMatch} ${lr.feedback}`;
+  const demonstratesSuccessfulParaphrase = /generally (?:able to )?paraphras(?:e|ing) successfully|generally successful paraphras|parafrasa[^.]{0,80}(?:berhasil|sukses)|berhasil[^.]{0,40}parafrasa/i.test(lrReview);
+  if (lr.score >= 6 && !demonstratesSuccessfulParaphrase) {
+    lr = capCriterion(lr, 5, 'Band 6 LR requires generally successful paraphrase. The evaluation contains no grounded evidence that this positive feature was met, so Band 6 is not fully supported.');
+  }
+
+  if (pro.score >= 6 && weakPhonologyParts >= majority) {
+    pro = capCriterion(pro, 5, 'Band 6 Pronunciation requires generally appropriate chunking and some effective, though unsustained, stress and intonation. Verified audio observations show flat or narrow intonation, weak stress, or irregular chunking in most parts, so Band 6 is not fully supported.');
+  }
+
+  return { fc, lr, gra, pro };
+}
+
 function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasAudio, verifiedTranscripts) {
   let fc = criterionEvidence('Fluency and Coherence (FC)', parsed?.fluencyCoherence, 'fluencyCoherence');
   let lr = criterionEvidence('Lexical Resource (LR)', parsed?.lexicalResource, 'lexicalResource');
@@ -1167,6 +1196,7 @@ function validateSpeaking(user, answers, parsed, hash, modelName, provider, hasA
   const partRelevance = validatePartRelevance(parsed?.partRelevance, verifiedTranscripts);
 
   ({ fc, lr, gra, pro } = applySpeakingDescriptorCaps(answers, { fc, lr, gra, pro }));
+  ({ fc, lr, gra, pro } = applySpeakingBandSixGates({ fc, lr, gra, pro }, verifiedTranscripts));
   ({ fc, lr, gra, pro } = applySpeakingRelevanceCaps({ fc, lr, gra, pro }, partRelevance));
 
   const rawAverage = (fc.score + lr.score + gra.score + pro.score) / 4;
