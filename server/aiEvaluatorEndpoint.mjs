@@ -1275,6 +1275,22 @@ export async function persistAiAssessment(assessment) {
     const text = await response.text();
     throw new Error(`AI assessment Supabase persistence failed: ${response.status} - ${text.slice(0, 500)}`);
   }
+
+  const deactivateUrl = `${supabaseUrl}/rest/v1/ai_assessments?result_id=eq.${encodeURIComponent(assessment.result_id)}&section=eq.${encodeURIComponent(assessment.section)}&evaluation_id=neq.${encodeURIComponent(assessment.evaluation_id)}&is_active=eq.true`;
+  const deactivateResponse = await fetch(deactivateUrl, {
+    method: 'PATCH',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal'
+    },
+    body: JSON.stringify({ is_active: false })
+  });
+  if (!deactivateResponse.ok) {
+    const text = await deactivateResponse.text();
+    throw new Error(`Old AI assessment deactivation failed: ${deactivateResponse.status} - ${text.slice(0, 500)}`);
+  }
 }
 
 export function aiInputHash(section, user, answers) {
