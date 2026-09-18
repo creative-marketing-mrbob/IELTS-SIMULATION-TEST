@@ -12,7 +12,7 @@ class AudioStorageService {
     };
   }
 
-  public getStoragePath(resultId: string, partId: number | string, extension = 'webm'): string {
+  public getStoragePath(resultId: string, partId: number | string, extension = 'wav'): string {
     const cleanId = resultId.replace(/[^a-zA-Z0-9-_]/g, '');
     return `speaking-recordings/${cleanId}/part-${partId}.${extension}`;
   }

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTest } from '../../context/TestContext';
 import { speakingTasks } from '../../data/speakingQuestions';
 import { audioStorage } from '../../services/audioStorage';
+import { convertBlobToWav } from '../../utils/audioConversion';
 import { Mic, Square, Play, Pause, RotateCcw, CheckCircle2, Send, AlertCircle } from 'lucide-react';
 
 interface SpeakingSectionProps {
@@ -328,13 +329,21 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({ onSubmitReques
       mediaRecorder.onstop = async () => {
         const duration = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        const rawAudioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         setActiveRecordingKey(null);
         setSaveStates(prev => ({ ...prev, [target.key]: 'processing' }));
 
-        if (!audioBlob || audioBlob.size <= 0 || !mimeType.startsWith('audio/') || duration <= 0) {
+        if (!rawAudioBlob || rawAudioBlob.size <= 0 || !mimeType.startsWith('audio/') || duration <= 0) {
           setSaveStates(prev => ({ ...prev, [target.key]: 'failed' }));
           return;
+        }
+
+        // Convert audio to 16kHz 16-bit Mono WAV so KIE and Gemini can directly evaluate acoustic Pronunciation
+        let audioBlob = rawAudioBlob;
+        try {
+          audioBlob = await convertBlobToWav(rawAudioBlob);
+        } catch (convErr) {
+          console.warn('WAV conversion fallback to raw recording:', convErr);
         }
 
         try {

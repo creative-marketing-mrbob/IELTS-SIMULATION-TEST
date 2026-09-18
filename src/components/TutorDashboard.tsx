@@ -31,6 +31,7 @@ import {
   Search,
   ShieldCheck
 } from 'lucide-react';
+import { AiEvaluationBreakdown } from './Common/AiEvaluationBreakdown';
 
 type TutorTab = 'info' | 'writing' | 'speaking' | 'objective';
 type TutorSectionKey = 'reading' | 'listening' | 'writing' | 'speaking';
@@ -636,6 +637,7 @@ export const TutorDashboard: React.FC = () => {
           <div className="space-y-5">
             <SectionStatusBanner status={sectionStatus(selected, 'writing')} />
             {selected.manualChecks?.sectionStatuses?.writing?.edited_after_ai_reveal && <BlindCalibrationNotice />}
+            <AiEvaluationBreakdown section="writing" candidate={selected} />
             <WritingTaskCard
               title="TASK 1"
               prompt={String(writingSection?.parts[0]?.content || '')}
@@ -714,6 +716,8 @@ export const TutorDashboard: React.FC = () => {
                 </div>
               );
             })}
+
+            <AiEvaluationBreakdown section="speaking" candidate={selected} />
 
             <div className="rounded-3xl border border-[#e6eaf2] bg-white p-4 shadow-soft sm:p-6">
               <h3 className="mb-4 text-base font-extrabold text-[#08245c]">Overall Speaking Assessment</h3>

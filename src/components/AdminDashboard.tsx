@@ -48,6 +48,7 @@ import {
   getStoredEvaluatorAdminToken,
   saveStoredEvaluatorAdminToken
 } from '../services/aiEvaluator';
+import { AiEvaluationBreakdown } from './Common/AiEvaluationBreakdown';
 import { 
   Search, 
   FileDown, 
@@ -2428,85 +2429,92 @@ export const AdminDashboard: React.FC<{ mode?: AdminDashboardMode }> = ({ mode =
                     Nilai AI disembunyikan dulu sampai tutor selesai submit penilaian.
                   </div>
                 ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* WRITING BREAKDOWN */}
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <span className="font-extrabold text-[#08245c] flex items-center space-x-1.5">
-                        <PenTool className="w-4 h-4 text-blue-600" />
-                        <span>Writing</span>
-                      </span>
-                      <span className="font-mono text-blue-700 font-bold">
-                        {hasAiWritingScore
-                          ? (typeof selectedCandidate.writing.band === 'number' ? `Band ${selectedCandidate.writing.band.toFixed(1)}` : String(selectedCandidate.writing.band))
-                          : 'Belum dinilai'}
-                      </span>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* WRITING BREAKDOWN */}
+                      <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="font-extrabold text-[#08245c] flex items-center space-x-1.5">
+                            <PenTool className="w-4 h-4 text-blue-600" />
+                            <span>Writing</span>
+                          </span>
+                          <span className="font-mono text-blue-700 font-bold">
+                            {hasAiWritingScore
+                              ? (typeof selectedCandidate.writing.band === 'number' ? `Band ${selectedCandidate.writing.band.toFixed(1)}` : String(selectedCandidate.writing.band))
+                              : 'Belum dinilai'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2 text-[11px]">
+                          <div className="bg-[#f8fbff] p-2.5 rounded-xl border border-slate-100">
+                            <strong className="text-slate-800 block mb-1">Task 1</strong>
+                            <div className="grid grid-cols-4 gap-1 text-center font-mono">
+                              <div className="bg-white p-1 rounded border">TA: {selectedCandidate.writing.writingDetail?.task1.criterion1.score || '-'}</div>
+                              <div className="bg-white p-1 rounded border">CC: {selectedCandidate.writing.writingDetail?.task1.cc.score || '-'}</div>
+                              <div className="bg-white p-1 rounded border">LR: {selectedCandidate.writing.writingDetail?.task1.lr.score || '-'}</div>
+                              <div className="bg-white p-1 rounded border">GRA: {selectedCandidate.writing.writingDetail?.task1.gra.score || '-'}</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-[#f8fbff] p-2.5 rounded-xl border border-slate-100">
+                            <strong className="text-slate-800 block mb-1">Task 2</strong>
+                            <div className="grid grid-cols-4 gap-1 text-center font-mono">
+                              <div className="bg-white p-1 rounded border">TR: {selectedCandidate.writing.writingDetail?.task2.criterion1.score || '-'}</div>
+                              <div className="bg-white p-1 rounded border">CC: {selectedCandidate.writing.writingDetail?.task2.cc.score || '-'}</div>
+                              <div className="bg-white p-1 rounded border">LR: {selectedCandidate.writing.writingDetail?.task2.lr.score || '-'}</div>
+                              <div className="bg-white p-1 rounded border">GRA: {selectedCandidate.writing.writingDetail?.task2.gra.score || '-'}</div>
+                            </div>
+                          </div>
+
+                          <div className="text-slate-500">
+                            Nilai akhir writing mengikuti bobot Task 2 yang lebih besar.
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* SPEAKING BREAKDOWN */}
+                      <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="font-extrabold text-[#08245c] flex items-center space-x-1.5">
+                            <Mic className="w-4 h-4 text-red-600" />
+                            <span>Speaking</span>
+                          </span>
+                          <span className="font-mono text-red-600 font-bold">
+                            {hasAiSpeakingScore
+                              ? (typeof selectedCandidate.speaking.band === 'number' ? `Band ${selectedCandidate.speaking.band.toFixed(1)}` : String(selectedCandidate.speaking.band))
+                              : 'Belum dinilai'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2 text-[11px]">
+                          <div className="bg-[#f8fbff] p-2.5 rounded-xl border border-slate-100">
+                            <strong className="text-slate-800 block mb-1">Detail nilai</strong>
+                            <div className="grid grid-cols-4 gap-1 text-center font-mono">
+                              <div className="bg-white p-1 rounded border">FC: {selectedCandidate.speaking.speakingDetail?.fc.score || '-'}</div>
+                              <div className="bg-white p-1 rounded border">LR: {selectedCandidate.speaking.speakingDetail?.lr.score || '-'}</div>
+                              <div className="bg-white p-1 rounded border">GRA: {selectedCandidate.speaking.speakingDetail?.gra.score || '-'}</div>
+                              <div className="bg-white p-1 rounded border">PRO: {selectedCandidate.speaking.speakingDetail?.pro.score || '-'}</div>
+                            </div>
+                          </div>
+
+                          {selectedCandidate.speaking.speakingDetail?.pro.score === 0 && (
+                            <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold">
+                              Pronunciation perlu dicek tutor dari rekaman.
+                            </div>
+                          )}
+
+                          <div className="text-slate-500">
+                            Nilai speaking diambil dari rata-rata empat aspek.
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="space-y-2 text-[11px]">
-                      <div className="bg-[#f8fbff] p-2.5 rounded-xl border border-slate-100">
-                        <strong className="text-slate-800 block mb-1">Task 1</strong>
-                        <div className="grid grid-cols-4 gap-1 text-center font-mono">
-                          <div className="bg-white p-1 rounded border">TA: {selectedCandidate.writing.writingDetail?.task1.criterion1.score || '-'}</div>
-                          <div className="bg-white p-1 rounded border">CC: {selectedCandidate.writing.writingDetail?.task1.cc.score || '-'}</div>
-                          <div className="bg-white p-1 rounded border">LR: {selectedCandidate.writing.writingDetail?.task1.lr.score || '-'}</div>
-                          <div className="bg-white p-1 rounded border">GRA: {selectedCandidate.writing.writingDetail?.task1.gra.score || '-'}</div>
-                        </div>
-                      </div>
-
-                      <div className="bg-[#f8fbff] p-2.5 rounded-xl border border-slate-100">
-                        <strong className="text-slate-800 block mb-1">Task 2</strong>
-                        <div className="grid grid-cols-4 gap-1 text-center font-mono">
-                          <div className="bg-white p-1 rounded border">TR: {selectedCandidate.writing.writingDetail?.task2.criterion1.score || '-'}</div>
-                          <div className="bg-white p-1 rounded border">CC: {selectedCandidate.writing.writingDetail?.task2.cc.score || '-'}</div>
-                          <div className="bg-white p-1 rounded border">LR: {selectedCandidate.writing.writingDetail?.task2.lr.score || '-'}</div>
-                          <div className="bg-white p-1 rounded border">GRA: {selectedCandidate.writing.writingDetail?.task2.gra.score || '-'}</div>
-                        </div>
-                      </div>
-
-                      <div className="text-slate-500">
-                        Nilai akhir writing mengikuti bobot Task 2 yang lebih besar.
-                      </div>
+                    <div className="space-y-4 pt-3">
+                      <AiEvaluationBreakdown section="writing" candidate={selectedCandidate} />
+                      <AiEvaluationBreakdown section="speaking" candidate={selectedCandidate} />
                     </div>
                   </div>
-
-                  {/* SPEAKING BREAKDOWN */}
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <span className="font-extrabold text-[#08245c] flex items-center space-x-1.5">
-                        <Mic className="w-4 h-4 text-red-600" />
-                        <span>Speaking</span>
-                      </span>
-                      <span className="font-mono text-red-600 font-bold">
-                        {hasAiSpeakingScore
-                          ? (typeof selectedCandidate.speaking.band === 'number' ? `Band ${selectedCandidate.speaking.band.toFixed(1)}` : String(selectedCandidate.speaking.band))
-                          : 'Belum dinilai'}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2 text-[11px]">
-                      <div className="bg-[#f8fbff] p-2.5 rounded-xl border border-slate-100">
-                        <strong className="text-slate-800 block mb-1">Detail nilai</strong>
-                        <div className="grid grid-cols-4 gap-1 text-center font-mono">
-                          <div className="bg-white p-1 rounded border">FC: {selectedCandidate.speaking.speakingDetail?.fc.score || '-'}</div>
-                          <div className="bg-white p-1 rounded border">LR: {selectedCandidate.speaking.speakingDetail?.lr.score || '-'}</div>
-                          <div className="bg-white p-1 rounded border">GRA: {selectedCandidate.speaking.speakingDetail?.gra.score || '-'}</div>
-                          <div className="bg-white p-1 rounded border">PRO: {selectedCandidate.speaking.speakingDetail?.pro.score || '-'}</div>
-                        </div>
-                      </div>
-
-                      {selectedCandidate.speaking.speakingDetail?.pro.score === 0 && (
-                        <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold">
-                          Pronunciation perlu dicek tutor dari rekaman.
-                        </div>
-                      )}
-
-                      <div className="text-slate-500">
-                        Nilai speaking diambil dari rata-rata empat aspek.
-                      </div>
-                    </div>
-                  </div>
-                </div>
                 )}
 
               </div>
