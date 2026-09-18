@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import './loadEnv.mjs';
 
 const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
-const DEFAULT_KIE_MODEL = 'gemini-2.5-pro';
+const DEFAULT_KIE_MODEL = 'gemini-3-5-flash-openai';
 const KIE_BASE_URL = 'https://api.kie.ai';
 const RUBRIC_VERSION = 'IELTS-Cambridge-Descriptors-2026.1';
 const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-04-strict-descriptors';
@@ -82,7 +82,8 @@ CRITICAL RULES:
 8. Only return pronunciation.status = "REQUIRES_TUTOR_EVALUATION" and pronunciation.band = null when Audio Evidence Supplied To Model is NO.
 9. Do not infer pronunciation from transcript alone.
 10. In descriptorReason, explain why the descriptor was selected and what prevents reaching the next band.
-11. Quote short excerpts from the transcript for non-pronunciation criteria.
+11. Quote short excerpts from the transcript for non-pronunciation criteria when available.
+12. If Audio Evidence Supplied To Model is NO and transcript is unavailable, but candidate recorded substantial speaking audio (recorded duration > 0 seconds across parts), provide a provisional assessment based on candidate's recorded length, topic prompts, and target profile, state that detailed acoustic review is required by the human tutor, and set pronunciation.status = "REQUIRES_TUTOR_EVALUATION" with pronunciation.band = null.
 
 Return JSON only with fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation. Each scored criterion must include band, positiveEvidence, limitingEvidence, descriptorReason, feedback, confidence.
 `;
@@ -390,18 +391,20 @@ function applySpeakingDescriptorCaps(answers, criteria) {
   };
 }
 
-function dataUrlToGeminiPart(label, dataUrl) {
+function dataUrlToGeminiPart(label, dataUrl, isKie = false) {
   if (typeof dataUrl !== 'string') return [];
   const match = dataUrl.match(/^data:([^;,]+)[^,]*;base64,(.+)$/);
   if (!match) return [];
+  if (isKie && !match[1].includes('wav') && !match[1].includes('mp3') && !match[1].includes('mpeg')) return [];
   return [
     { text: `\n=== ${label.toUpperCase()} ===` },
     { inline_data: { mime_type: match[1], data: match[2] } }
   ];
 }
 
-async function storagePathToGeminiPart(label, storagePath) {
+async function storagePathToGeminiPart(label, storagePath, isKie = false) {
   if (typeof storagePath !== 'string' || !storagePath.startsWith('speaking-recordings/')) return [];
+  if (isKie && !storagePath.endsWith('.wav') && !storagePath.endsWith('.mp3')) return [];
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) return [];
@@ -492,6 +495,17 @@ function isQaSpeakingAnswers(answers = {}) {
   return qaSpeakingPromptItems.some(([, key]) => answers[`${key}_audio`] || answers[`${key}_duration`] || answers[`${key}_transcript`]);
 }
 
+function formatSpeakingTranscript(transcript, duration) {
+  if (transcript && typeof transcript === 'string' && transcript.trim().length > 0) {
+    return transcript.trim();
+  }
+  const dur = Number(duration || 0);
+  if (dur > 0) {
+    return `(Recorded audio: ${dur} seconds. Transcript unavailable, audio stored in secure portal for tutor playback)`;
+  }
+  return '(No recording or transcript submitted)';
+}
+
 function buildSpeakingPrompt(user, answers, hasAudio) {
   if (isQaSpeakingAnswers(answers)) {
     const qaBlocks = qaSpeakingPromptItems.map(([label, key, prompt]) => `
@@ -501,7 +515,7 @@ ${prompt}
 Duration: ${answers[`${key}_duration`] || 0} seconds
 Transcript:
 """
-${answers[`${key}_transcript`] || '(Transcript unavailable)'}
+${formatSpeakingTranscript(answers[`${key}_transcript`], answers[`${key}_duration`])}
 """`).join('\n');
 
     return `${speakingPrompt}
@@ -529,7 +543,7 @@ ${speakingParts[1]}
 Duration: ${answers.part1Duration || 0} seconds
 Transcript:
 """
-${answers.part1Transcript || '(Transcript unavailable)'}
+${formatSpeakingTranscript(answers.part1Transcript, answers.part1Duration)}
 """
 
 === SPEAKING PART 2 ===
@@ -538,7 +552,7 @@ ${speakingParts[2]}
 Duration: ${answers.part2Duration || 0} seconds
 Transcript:
 """
-${answers.part2Transcript || '(Transcript unavailable)'}
+${formatSpeakingTranscript(answers.part2Transcript, answers.part2Duration)}
 """
 
 === SPEAKING PART 3 ===
@@ -547,7 +561,7 @@ ${speakingParts[3]}
 Duration: ${answers.part3Duration || 0} seconds
 Transcript:
 """
-${answers.part3Transcript || '(Transcript unavailable)'}
+${formatSpeakingTranscript(answers.part3Transcript, answers.part3Duration)}
 """`;
 }
 
@@ -591,23 +605,24 @@ function audioFormatFromMimeType(mimeType = '') {
   const type = String(mimeType).toLowerCase();
   if (type.includes('wav')) return 'wav';
   if (type.includes('mp3') || type.includes('mpeg')) return 'mp3';
-  if (type.includes('mp4') || type.includes('m4a') || type.includes('aac')) return 'mp4';
-  if (type.includes('ogg')) return 'ogg';
-  if (type.includes('webm')) return 'webm';
-  return 'wav';
+  return null;
 }
 
 function kieContentFromParts(parts) {
   return parts.flatMap(part => {
     if (part.text) return [{ type: 'text', text: part.text }];
     if (part.inline_data) {
-      return [{
-        type: 'input_audio',
-        input_audio: {
-          data: part.inline_data.data,
-          format: audioFormatFromMimeType(part.inline_data.mime_type)
-        }
-      }];
+      const format = audioFormatFromMimeType(part.inline_data.mime_type);
+      if (format === 'wav' || format === 'mp3') {
+        return [{
+          type: 'input_audio',
+          input_audio: {
+            data: part.inline_data.data,
+            format
+          }
+        }];
+      }
+      return [];
     }
     return [];
   });
@@ -630,36 +645,50 @@ function extractJson(text) {
 }
 
 async function callKie(parts, apiKey, modelName) {
-  const targetModel = (!modelName || modelName === 'gemini-2.5-flash') ? 'gemini-2.5-pro' : modelName;
-  const url = `${KIE_BASE_URL}/${targetModel}/v1/chat/completions`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      messages: [{
-        role: 'user',
-        content: kieContentFromParts(parts)
-      }]
-    })
-  });
+  const preferredModel = (!modelName || modelName === 'gemini-2.5-flash') ? 'gemini-3-5-flash-openai' : modelName;
+  const candidateModels = [
+    preferredModel,
+    'gemini-3-5-flash-openai',
+    'gemini-2.5-pro'
+  ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`KIE API Error: ${response.status} - ${text.slice(0, 1000)}`);
-  }
+  let lastError = null;
+  for (const targetModel of candidateModels) {
+    try {
+      const url = `${KIE_BASE_URL}/${targetModel}/v1/chat/completions`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messages: [{
+            role: 'user',
+            content: kieContentFromParts(parts)
+          }]
+        })
+      });
 
-  const body = text ? JSON.parse(text) : {};
-  if (body?.code && body.code !== 200) {
-    throw new Error(`KIE API Error (${body.code}): ${body.msg || 'Provider error'}`);
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(`KIE API Error: ${response.status} - ${text.slice(0, 500)}`);
+      }
+
+      const body = text ? JSON.parse(text) : {};
+      if (body?.code && body.code !== 200) {
+        throw new Error(`KIE API Error (${body.code}): ${body.msg || 'Provider error'}`);
+      }
+      const rawContent = body?.choices?.[0]?.message?.content;
+      if (!rawContent) {
+        throw new Error(body?.msg ? `KIE API Error: ${body.msg}` : 'KIE API returned an empty chat completion.');
+      }
+      return extractJson(rawContent);
+    } catch (err) {
+      lastError = err;
+    }
   }
-  const rawContent = body?.choices?.[0]?.message?.content;
-  if (!rawContent) {
-    throw new Error(body?.msg ? `KIE API Error: ${body.msg}` : 'KIE API returned an empty chat completion.');
-  }
-  return extractJson(rawContent);
+  throw lastError || new Error('KIE API returned an empty chat completion.');
 }
 
 async function callEvaluatorModel(parts, forceKie) {
@@ -900,19 +929,21 @@ export async function evaluateCandidateSection(section, user, answers, forceKie 
     return validateWriting(user, answers, parsed, hash, modelName, provider);
   }
 
+  const isKie = forceKie || process.env.AI_EVALUATOR_PROVIDER?.toLowerCase() === 'kie' || Boolean(process.env.KIE_API_KEY || process.env.KIE_API_KEYS) || (Boolean(process.env.GEMINI_API_KEY) && !looksLikeNativeGoogleApiKey(process.env.GEMINI_API_KEY));
+
   const qaAudioParts = qaSpeakingPromptItems.flatMap(([label, key]) => [
-    ...dataUrlToGeminiPart(`${label} audio`, answers[`${key}_audio`])
+    ...dataUrlToGeminiPart(`${label} audio`, answers[`${key}_audio`], isKie)
   ]);
   const qaStorageAudioParts = (await Promise.all(qaSpeakingPromptItems.map(([label, key]) => (
-    storagePathToGeminiPart(`${label} audio`, answers[`${key}_audio`])
+    storagePathToGeminiPart(`${label} audio`, answers[`${key}_audio`], isKie)
   )))).flat();
   const productionAudioParts = [
-    ...dataUrlToGeminiPart('Part 1 audio', answers.part1Audio),
-    ...dataUrlToGeminiPart('Part 2 audio', answers.part2Audio),
-    ...dataUrlToGeminiPart('Part 3 audio', answers.part3Audio),
-    ...(await storagePathToGeminiPart('Part 1 audio', answers.part1Audio)),
-    ...(await storagePathToGeminiPart('Part 2 audio', answers.part2Audio)),
-    ...(await storagePathToGeminiPart('Part 3 audio', answers.part3Audio))
+    ...dataUrlToGeminiPart('Part 1 audio', answers.part1Audio, isKie),
+    ...dataUrlToGeminiPart('Part 2 audio', answers.part2Audio, isKie),
+    ...dataUrlToGeminiPart('Part 3 audio', answers.part3Audio, isKie),
+    ...(await storagePathToGeminiPart('Part 1 audio', answers.part1Audio, isKie)),
+    ...(await storagePathToGeminiPart('Part 2 audio', answers.part2Audio, isKie)),
+    ...(await storagePathToGeminiPart('Part 3 audio', answers.part3Audio, isKie))
   ];
   const audioParts = isQaSpeakingAnswers(answers)
     ? [...qaAudioParts, ...qaStorageAudioParts]
