@@ -5,7 +5,7 @@ const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
 const DEFAULT_KIE_MODEL = 'gemini-3-5-flash-openai';
 const KIE_BASE_URL = 'https://api.kie.ai';
 const RUBRIC_VERSION = 'IELTS-Cambridge-Descriptors-2026.1';
-const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-18-official-forms-grounded-evidence';
+const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-18-official-forms-signed-audio';
 
 const officialSpeakingDescriptors = `
 OFFICIAL IELTS SPEAKING BAND DESCRIPTORS (supplied assessment form):
@@ -453,7 +453,9 @@ function dataUrlToGeminiPart(label, dataUrl, isKie = false) {
   if (isKie && !match[1].includes('wav') && !match[1].includes('mp3') && !match[1].includes('mpeg')) return [];
   return [
     { text: `\n=== ${label.toUpperCase()} ===` },
-    { inline_data: { mime_type: match[1], data: match[2] } }
+    isKie
+      ? { media_url: { url: dataUrl } }
+      : { inline_data: { mime_type: match[1], data: match[2] } }
   ];
 }
 
@@ -465,6 +467,29 @@ async function storagePathToGeminiPart(label, storagePath, isKie = false) {
   if (!supabaseUrl || !serviceRoleKey) return [];
 
   const path = storagePath.replace(/^speaking-recordings\//, '');
+  if (isKie) {
+    const signResponse = await fetch(`${supabaseUrl}/storage/v1/object/sign/speaking-recordings/${path}`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ expiresIn: 600 })
+    });
+    if (!signResponse.ok) return [];
+    const signed = await signResponse.json();
+    const signedPath = signed?.signedURL || signed?.signedUrl;
+    if (!signedPath) return [];
+    const signedUrl = /^https?:\/\//i.test(signedPath)
+      ? signedPath
+      : `${supabaseUrl}/storage/v1${signedPath.startsWith('/') ? '' : '/'}${signedPath}`;
+    return [
+      { text: `\n=== ${label.toUpperCase()} ===` },
+      { media_url: { url: signedUrl } }
+    ];
+  }
+
   const response = await fetch(`${supabaseUrl}/storage/v1/object/speaking-recordings/${path}`, {
     headers: {
       apikey: serviceRoleKey,
@@ -514,7 +539,7 @@ async function loadCompleteSpeakingAudio(answers, isKie) {
     return { ...item, parts };
   }));
   const unreadable = loaded
-    .filter(item => !item.parts.some(part => part.inline_data))
+    .filter(item => !item.parts.some(part => part.inline_data || part.media_url?.url))
     .map(item => item.label);
   if (unreadable.length) {
     throw new Error(`AI Speaking evaluation dibatalkan karena rekaman tidak dapat dibaca atau formatnya tidak didukung: ${unreadable.join(', ')}.`);
@@ -552,7 +577,7 @@ function validateVerifiedTranscripts(parsed, specs) {
     throw new Error('AI Speaking evaluation dibatalkan karena transkripsi rekaman tidak lengkap.');
   }
 
-  return specs.map(spec => {
+  const verified = specs.map(spec => {
     const matches = parsed.parts.filter(part => part?.id === spec.id);
     if (matches.length !== 1 || typeof matches[0].transcript !== 'string') {
       throw new Error(`AI Speaking evaluation dibatalkan karena transkrip terverifikasi tidak tersedia untuk ${spec.label}.`);
@@ -565,6 +590,11 @@ function validateVerifiedTranscripts(parsed, specs) {
       rateable: matches[0].rateable === true && countWords(transcript) > 0
     };
   });
+
+  if (!verified.some(item => item.rateable)) {
+    throw new Error('AI Speaking evaluation dibatalkan karena provider tidak berhasil membaca suara dari rekaman. Tidak ada nilai yang disimpan; silakan coba lagi atau lakukan penilaian tutor.');
+  }
+  return verified;
 }
 
 function answersWithVerifiedTranscripts(answers, specs, verifiedTranscripts) {
@@ -777,28 +807,21 @@ function shouldUseKie(forceKie = false) {
   );
 }
 
-function audioFormatFromMimeType(mimeType = '') {
-  const type = String(mimeType).toLowerCase();
-  if (type.includes('wav')) return 'wav';
-  if (type.includes('mp3') || type.includes('mpeg')) return 'mp3';
-  return null;
-}
-
 function kieContentFromParts(parts) {
   return parts.flatMap(part => {
     if (part.text) return [{ type: 'text', text: part.text }];
+    if (part.media_url?.url) {
+      return [{
+        type: 'image_url',
+        image_url: { url: part.media_url.url }
+      }];
+    }
     if (part.inline_data) {
-      const format = audioFormatFromMimeType(part.inline_data.mime_type);
-      if (format === 'wav' || format === 'mp3') {
-        return [{
-          type: 'input_audio',
-          input_audio: {
-            data: part.inline_data.data,
-            format
-          }
-        }];
-      }
-      return [];
+      const mimeType = part.inline_data.mime_type || 'application/octet-stream';
+      return [{
+        type: 'image_url',
+        image_url: { url: `data:${mimeType};base64,${part.inline_data.data}` }
+      }];
     }
     return [];
   });
