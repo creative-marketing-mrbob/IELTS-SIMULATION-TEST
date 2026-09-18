@@ -251,12 +251,16 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setEvaluation(candData.evaluation);
     }
 
-    // Check if all 4 sections are completed
-    const allCompleted = Object.values(prog).every(p => p.status === 'COMPLETED' || p.status === 'AUTO_SUBMITTED');
-    if (allCompleted) {
-      setCurrentView('result');
-    } else {
-      setCurrentView('dashboard');
+    // Do not redirect away if the user explicitly navigated to a staff route (/admin, /tutor, /database)
+    const isStaffRoute = ['/admin', '/tutor', '/database'].includes(window.location.pathname);
+    if (!isStaffRoute) {
+      // Check if all 4 sections are completed
+      const allCompleted = Object.values(prog).every(p => p.status === 'COMPLETED' || p.status === 'AUTO_SUBMITTED');
+      if (allCompleted) {
+        setCurrentView('result');
+      } else {
+        setCurrentView('dashboard');
+      }
     }
   }, []);
 

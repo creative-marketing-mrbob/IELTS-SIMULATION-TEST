@@ -930,6 +930,20 @@ export const AdminDashboard: React.FC<{ mode?: AdminDashboardMode }> = ({ mode =
                     type="password"
                     value={apiKeyInput}
                     onChange={e => setApiKeyInput(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        try {
+                          await saveStoredEvaluatorAdminToken(apiKeyInput);
+                          await loadAdminCandidates();
+                          setShowAISettings(false);
+                          setApiKeyInput('');
+                          alert("Token admin aktif.");
+                        } catch (error: any) {
+                          alert(error?.message || 'Token admin belum bisa dipakai.');
+                        }
+                      }
+                    }}
                     placeholder="Masukkan token admin"
                     className="w-full pl-9 pr-3 py-2 bg-[#f8fbff] border border-slate-200 rounded-xl font-mono"
                   />

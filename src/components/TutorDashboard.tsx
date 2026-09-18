@@ -546,6 +546,12 @@ export const TutorDashboard: React.FC = () => {
             type="password"
             value={token}
             onChange={event => setToken(event.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleUnlock();
+              }
+            }}
             className="mb-3 w-full rounded-xl border border-slate-200 bg-[#f8fbff] px-3 py-2 text-sm"
             placeholder="Enter secure access token"
           />
