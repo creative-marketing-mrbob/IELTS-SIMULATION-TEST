@@ -254,6 +254,12 @@ export interface SpeakingEvaluationDetail {
     label: string;
     transcript: string;
     rateable: boolean;
+    audioAnalysis?: {
+      intelligibility: string;
+      rhythm: string;
+      stressIntonation: string;
+      phonemeIssues: string;
+    };
   }>;
   partRelevance?: Record<string, {
     status: 'RELEVANT' | 'PARTIALLY_RELEVANT' | 'OFF_TOPIC';

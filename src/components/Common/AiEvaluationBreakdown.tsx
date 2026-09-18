@@ -187,6 +187,13 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
                     <p className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
                       {part.transcript || '[Tidak ada ucapan yang dapat dikenali]'}
                     </p>
+                    {part.audioAnalysis && (
+                      <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50/60 p-2 text-[11px] leading-relaxed text-slate-600">
+                        <span className="font-extrabold text-blue-800">Analisis audio:</span>{' '}
+                        {part.audioAnalysis.intelligibility} {part.audioAnalysis.rhythm}{' '}
+                        {part.audioAnalysis.stressIntonation} {part.audioAnalysis.phonemeIssues}
+                      </div>
+                    )}
                     {relevance?.reason && (
                       <p className="text-[11px] text-slate-500 mt-1.5">Alasan relevansi: {relevance.reason}</p>
                     )}

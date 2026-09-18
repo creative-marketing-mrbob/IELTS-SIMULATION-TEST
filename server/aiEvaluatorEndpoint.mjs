@@ -5,7 +5,7 @@ const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
 const DEFAULT_KIE_MODEL = 'gemini-3-5-flash-openai';
 const KIE_BASE_URL = 'https://api.kie.ai';
 const RUBRIC_VERSION = 'IELTS-Cambridge-Descriptors-2026.1';
-const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-18-official-forms-signed-audio';
+const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-19-verified-audio-observations';
 
 const officialSpeakingDescriptors = `
 OFFICIAL IELTS SPEAKING BAND DESCRIPTORS (supplied assessment form):
@@ -130,7 +130,8 @@ CRITICAL RULES:
 5. If the whole performance is a few isolated words, wholly unrelated to the prompts, or has virtually no communicative meaning, assign Band 1 for all criteria.
 6. Band 2 is only for isolated words or memorised utterances with at least a tiny amount of recognisable communication. If FC is totally incoherent or LR shows no communication possible, assign Band 1.
 7. Pronunciation MUST ALWAYS be assigned an INTEGER band score from 1 to 9 with status = "AI_EVALUATED".
-   - When Audio Evidence Supplied To Model is YES, listen directly to the audio for phonological features: individual sound clarity (phonemes), word stress, sentence stress, rhythm, and intonation patterns.
+   - When Audio Evidence Supplied To Model is YES, use the verified audio-only observations supplied with each transcript for individual sound clarity (phonemes), word stress, sentence stress, rhythm, intonation, and intelligibility.
+   - Never claim audio or phonological data is unavailable when verified audio observations are supplied.
    - When Audio Evidence Supplied To Model is NO or audio is unreadable, estimate pronunciation score based on speech tempo, fluency markers, and communication coherence with an explicit note in descriptorReason. NEVER return pronunciation.band = null or REQUIRES_TUTOR_EVALUATION.
 8. In descriptorReason for EVERY criterion (fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation), provide a CLEAR, POINT-BY-POINT EXPLANATION:
    - Part A (Alasan Pemberian Band): Concise points explaining specifically what features of the candidate's speech justify this band under Cambridge descriptors.
@@ -553,7 +554,17 @@ async function loadCompleteSpeakingAudio(answers, isKie) {
 function buildSpeakingTranscriptionPrompt(specs) {
   const expectedParts = specs.map(item => `- id: ${item.id}; label: ${item.label}`).join('\n');
   const responseShape = JSON.stringify({
-    parts: specs.map(item => ({ id: item.id, transcript: 'verbatim words only', rateable: true }))
+    parts: specs.map(item => ({
+      id: item.id,
+      transcript: 'verbatim words only',
+      rateable: true,
+      audioAnalysis: {
+        intelligibility: 'concrete observation from this recording',
+        rhythm: 'concrete observation from this recording',
+        stressIntonation: 'concrete observation from this recording',
+        phonemeIssues: 'concrete observation or none clearly observed'
+      }
+    }))
   });
   return `Transcribe the attached IELTS Speaking recordings before any grading.
 
@@ -567,6 +578,7 @@ STRICT TRANSCRIPTION RULES:
 4. Use [inaudible] only where speech cannot be understood. Use an empty transcript for silence or noise without intelligible speech.
 5. The IELTS questions are intentionally not supplied here. Never insert likely topic phrases.
 6. Return every expected id exactly once and in the supplied order.
+7. For each recording, analyse intelligibility, rhythm/chunking, word and sentence stress, intonation, and any concrete phoneme issues. Base every observation only on the audio.
 
 Return JSON only in this exact shape:
 ${responseShape}`;
@@ -583,11 +595,24 @@ function validateVerifiedTranscripts(parsed, specs) {
       throw new Error(`AI Speaking evaluation dibatalkan karena transkrip terverifikasi tidak tersedia untuk ${spec.label}.`);
     }
     const transcript = matches[0].transcript.trim();
+    const rateable = matches[0].rateable === true && countWords(transcript) > 0;
+    const audioAnalysis = matches[0].audioAnalysis;
+    if (rateable && (!audioAnalysis || typeof audioAnalysis !== 'object'
+      || ['intelligibility', 'rhythm', 'stressIntonation', 'phonemeIssues']
+        .some(key => typeof audioAnalysis[key] !== 'string' || !audioAnalysis[key].trim()))) {
+      throw new Error(`AI Speaking evaluation dibatalkan karena analisis audio tidak lengkap untuk ${spec.label}.`);
+    }
     return {
       id: spec.id,
       label: spec.label,
       transcript,
-      rateable: matches[0].rateable === true && countWords(transcript) > 0
+      rateable,
+      audioAnalysis: rateable ? {
+        intelligibility: audioAnalysis.intelligibility.trim(),
+        rhythm: audioAnalysis.rhythm.trim(),
+        stressIntonation: audioAnalysis.stressIntonation.trim(),
+        phonemeIssues: audioAnalysis.phonemeIssues.trim()
+      } : undefined
     };
   });
 
@@ -599,9 +624,11 @@ function validateVerifiedTranscripts(parsed, specs) {
 
 function answersWithVerifiedTranscripts(answers, specs, verifiedTranscripts) {
   const enriched = { ...answers };
+  enriched._verifiedAudioAnalysis = {};
   for (const spec of specs) {
     const verified = verifiedTranscripts.find(item => item.id === spec.id);
     enriched[spec.transcriptKey] = verified?.transcript || '';
+    enriched._verifiedAudioAnalysis[spec.id] = verified?.audioAnalysis;
   }
   return enriched;
 }
@@ -694,6 +721,17 @@ function formatSpeakingTranscript(transcript, duration) {
   return '(No recording or transcript submitted)';
 }
 
+function formatSpeakingAudioAnalysis(answers, id) {
+  const analysis = answers?._verifiedAudioAnalysis?.[id];
+  if (!analysis) return '(No verified phonological observations available for this part)';
+  return [
+    `Intelligibility: ${analysis.intelligibility}`,
+    `Rhythm/chunking: ${analysis.rhythm}`,
+    `Stress/intonation: ${analysis.stressIntonation}`,
+    `Phoneme issues: ${analysis.phonemeIssues}`
+  ].join('\n');
+}
+
 function buildSpeakingPrompt(user, answers, hasAudio) {
   const p1Dur = Number(answers.part1Duration || 0);
   const p2Dur = Number(answers.part2Duration || 0);
@@ -712,6 +750,10 @@ Duration: ${answers[`${key}_duration`] || 0} seconds
 Transcript:
 """
 ${formatSpeakingTranscript(answers[`${key}_transcript`], answers[`${key}_duration`])}
+"""
+Verified audio-only phonological observations:
+"""
+${formatSpeakingAudioAnalysis(answers, key)}
 """`).join('\n');
 
     return `${speakingPrompt}
@@ -720,7 +762,7 @@ Candidate ID: ${user.candidateId}
 Result ID: ${user.resultId}
 Candidate Name: ${user.fullName}
 Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}
-The transcripts below were produced in a separate audio-only pass. Treat them as the only permitted source for FC/LR/GRA quotations. Check the attached audio only for pronunciation and timing features.
+The transcripts and phonological observations below were produced in a separate audio-only pass. Treat transcripts as the only permitted source for FC/LR/GRA quotations and the verified observations as the source for Pronunciation.
 
 ${qaBlocks}`;
   }
@@ -731,7 +773,7 @@ Candidate ID: ${user.candidateId}
 Result ID: ${user.resultId}
 Candidate Name: ${user.fullName}
 Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}
-The transcripts below were produced in a separate audio-only pass. Treat them as the only permitted source for FC/LR/GRA quotations. Check the attached audio only for pronunciation and timing features.
+The transcripts and phonological observations below were produced in a separate audio-only pass. Treat transcripts as the only permitted source for FC/LR/GRA quotations and the verified observations as the source for Pronunciation.
 
 === SPEAKING PART 1 ===
 Original prompts:
@@ -740,6 +782,10 @@ Duration: ${answers.part1Duration || 0} seconds
 Transcript:
 """
 ${formatSpeakingTranscript(answers.part1Transcript, answers.part1Duration)}
+"""
+Verified audio-only phonological observations:
+"""
+${formatSpeakingAudioAnalysis(answers, 'part1')}
 """
 
 === SPEAKING PART 2 ===
@@ -750,6 +796,10 @@ Transcript:
 """
 ${formatSpeakingTranscript(answers.part2Transcript, answers.part2Duration)}
 """
+Verified audio-only phonological observations:
+"""
+${formatSpeakingAudioAnalysis(answers, 'part2')}
+"""
 
 === SPEAKING PART 3 ===
 Original prompts:
@@ -758,6 +808,10 @@ Duration: ${answers.part3Duration || 0} seconds
 Transcript:
 """
 ${formatSpeakingTranscript(answers.part3Transcript, answers.part3Duration)}
+"""
+Verified audio-only phonological observations:
+"""
+${formatSpeakingAudioAnalysis(answers, 'part3')}
 """`;
 }
 
@@ -845,11 +899,13 @@ function extractJson(text) {
 
 async function callKie(parts, apiKey, modelName) {
   const preferredModel = (!modelName || modelName === 'gemini-2.5-flash') ? 'gemini-3-5-flash-openai' : modelName;
-  const candidateModels = [
+  const fallbackModels = [
     preferredModel,
     'gemini-3-5-flash-openai',
     'gemini-2.5-pro'
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+  const hasMedia = parts.some(part => part.media_url?.url || part.inline_data);
+  const candidateModels = hasMedia ? [preferredModel] : fallbackModels;
 
   let lastError = null;
   for (const targetModel of candidateModels) {
@@ -857,6 +913,7 @@ async function callKie(parts, apiKey, modelName) {
       const url = `${KIE_BASE_URL}/${targetModel}/v1/chat/completions`;
       const response = await fetch(url, {
         method: 'POST',
+        signal: AbortSignal.timeout(Number(process.env.KIE_REQUEST_TIMEOUT_MS || 45000)),
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
@@ -1037,16 +1094,31 @@ function validateGroundedCriterionEvidence(label, criterion, verifiedTranscripts
 }
 
 function validatePartRelevance(value, verifiedTranscripts) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!value || typeof value !== 'object') {
     throw new Error('AI Speaking evaluation rejected: partRelevance is missing.');
   }
   const allowed = new Set(['RELEVANT', 'PARTIALLY_RELEVANT', 'OFF_TOPIC']);
-  return Object.fromEntries(verifiedTranscripts.map(part => {
-    const item = value[part.id];
-    if (!item || !allowed.has(item.status) || typeof item.reason !== 'string' || !item.reason.trim()) {
+  const normalizeId = input => String(input || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const entries = Array.isArray(value)
+    ? value.map((item, index) => [item?.id || item?.part || item?.label || `index${index}`, item])
+    : Object.entries(value);
+
+  return Object.fromEntries(verifiedTranscripts.map((part, index) => {
+    const wanted = normalizeId(part.id);
+    const matched = entries.find(([key, item]) => {
+      const candidates = [key, item?.id, item?.part, item?.label].map(normalizeId).filter(Boolean);
+      return candidates.some(candidate => candidate === wanted || candidate.startsWith(wanted) || wanted.startsWith(candidate));
+    });
+    const item = matched?.[1] || (Array.isArray(value) ? value[index] : undefined);
+    let status = String(item?.status || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+    if (status === 'ON_TOPIC') status = 'RELEVANT';
+    if (status === 'PARTIAL' || status === 'PARTLY_RELEVANT') status = 'PARTIALLY_RELEVANT';
+    if (status === 'IRRELEVANT') status = 'OFF_TOPIC';
+    const reason = typeof item?.reason === 'string' ? item.reason : item?.explanation;
+    if (!item || !allowed.has(status) || typeof reason !== 'string' || !reason.trim()) {
       throw new Error(`AI Speaking evaluation rejected: invalid relevance review for ${part.label}.`);
     }
-    return [part.id, { status: item.status, reason: item.reason.trim() }];
+    return [part.id, { status, reason: reason.trim() }];
   }));
 }
 
@@ -1228,7 +1300,7 @@ export async function evaluateCandidateSection(section, user, answers, forceKie 
   const verifiedTranscripts = validateVerifiedTranscripts(transcription, specs);
   const verifiedAnswers = answersWithVerifiedTranscripts(answers, specs, verifiedTranscripts);
   const prompt = buildSpeakingPrompt(user, verifiedAnswers, hasAudio);
-  const { parsed, modelName, provider } = await callEvaluatorModel([{ text: prompt }, ...audioParts], forceKie);
+  const { parsed, modelName, provider } = await callEvaluatorModel([{ text: prompt }], forceKie);
   return validateSpeaking(user, verifiedAnswers, parsed, hash, modelName, provider, hasAudio, verifiedTranscripts);
 }
 

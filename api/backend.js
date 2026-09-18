@@ -6,7 +6,7 @@ import {
 } from '../server/aiEvaluatorEndpoint.mjs';
 
 export const config = {
-  maxDuration: 60
+  maxDuration: 180
 };
 
 export default async function handler(req, res) {
