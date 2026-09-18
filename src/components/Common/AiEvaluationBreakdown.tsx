@@ -16,6 +16,7 @@ import {
 interface AiEvaluationBreakdownProps {
   section: 'writing' | 'speaking';
   candidate: TestEvaluation;
+  onReEvaluate?: () => Promise<void>;
 }
 
 interface NormalizedCriterion {
@@ -28,7 +29,8 @@ interface NormalizedCriterion {
   feedback?: string;
 }
 
-export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ section, candidate }) => {
+export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ section, candidate, onReEvaluate }) => {
+  const [isReEvaluating, setIsReEvaluating] = useState(false);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({
     'fc': true,
     'pro': true,
@@ -103,6 +105,25 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            {onReEvaluate && (
+              <button
+                type="button"
+                disabled={isReEvaluating}
+                onClick={async () => {
+                  setIsReEvaluating(true);
+                  try {
+                    await onReEvaluate();
+                  } finally {
+                    setIsReEvaluating(false);
+                  }
+                }}
+                className="inline-flex items-center space-x-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-sm transition-all disabled:opacity-50 mr-1"
+                title="Jalankan evaluasi ulang AI untuk speaking"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
+                <span>{isReEvaluating ? 'Menilai Ulang...' : '⚡ Nilai Ulang AI'}</span>
+              </button>
+            )}
             <span className="text-xs font-bold text-slate-500">Overall:</span>
             <span className="px-3 py-1 bg-red-500 text-white rounded-xl text-sm font-black shadow-sm">
               Band {typeof overallBand === 'number' ? overallBand.toFixed(1) : overallBand}
@@ -192,6 +213,25 @@ export const AiEvaluationBreakdown: React.FC<AiEvaluationBreakdownProps> = ({ se
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          {onReEvaluate && (
+            <button
+              type="button"
+              disabled={isReEvaluating}
+              onClick={async () => {
+                setIsReEvaluating(true);
+                try {
+                  await onReEvaluate();
+                } finally {
+                  setIsReEvaluating(false);
+                }
+              }}
+              className="inline-flex items-center space-x-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-sm transition-all disabled:opacity-50 mr-1"
+              title="Jalankan evaluasi ulang AI untuk writing"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
+              <span>{isReEvaluating ? 'Menilai Ulang...' : '⚡ Nilai Ulang AI'}</span>
+            </button>
+          )}
           <span className="text-xs font-bold text-slate-500">Overall Writing:</span>
           <span className="px-3 py-1 bg-blue-600 text-white rounded-xl text-sm font-black shadow-sm">
             Band {typeof overallBand === 'number' ? overallBand.toFixed(1) : overallBand}
@@ -288,31 +328,77 @@ function renderCriterionCard(crit: NormalizedCriterion, isExpanded: boolean, onT
       </button>
 
       {isExpanded && (
-        <div className="p-4 pt-1 space-y-3 border-t border-slate-100 bg-[#fcfdff] text-xs">
-          {/* ALASAN PENILAIAN (DESCRIPTOR REASON) */}
-          <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-slate-800">
-            <div className="flex items-center space-x-1.5 font-extrabold text-blue-900 mb-1.5 text-[11px] uppercase tracking-wider">
+        <div className="p-4 pt-1 space-y-3.5 border-t border-slate-100 bg-[#fcfdff] text-xs">
+          {/* ALASAN PENILAIAN (DESCRIPTOR REASON) - POINT BY POINT */}
+          <div className="space-y-2">
+            <div className="flex items-center space-x-1.5 font-black text-blue-900 text-[11px] uppercase tracking-wider">
               <Award className="w-3.5 h-3.5 text-blue-600" />
-              <span>Alasan Penilaian AI (Rubric Descriptor Match)</span>
+              <span>Alasan Penilaian AI (Cambridge Rubric Descriptors)</span>
             </div>
-            <p className="leading-relaxed font-medium whitespace-pre-line text-slate-800 text-[12px]">
-              {crit.descriptorReason}
-            </p>
+            <div className="space-y-2">
+              {parseDescriptorReason(crit.descriptorReason, crit.score).map((sec, secIdx) => (
+                <div
+                  key={secIdx}
+                  className={`rounded-2xl border p-3.5 transition-all ${
+                    sec.type === 'award'
+                      ? 'border-blue-200 bg-[#f0f6ff]'
+                      : sec.type === 'limiting'
+                      ? 'border-amber-200 bg-[#fffbeb]'
+                      : 'border-slate-200 bg-[#f8fafc]'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                        sec.type === 'award'
+                          ? 'bg-blue-600 text-white'
+                          : sec.type === 'limiting'
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-slate-600 text-white'
+                      }`}
+                    >
+                      {sec.type === 'award' ? '✓ Dasar Penilaian' : sec.type === 'limiting' ? '⚠ Faktor Pembatas' : sec.badge}
+                    </span>
+                    <span className="font-extrabold text-slate-800 text-xs">
+                      {sec.title}
+                    </span>
+                  </div>
+                  <ul className="space-y-1.5 text-xs">
+                    {sec.points.map((pt, ptIdx) => (
+                      <li key={ptIdx} className="flex items-start space-x-2 text-slate-800 font-medium leading-relaxed">
+                        <span
+                          className={`font-black mt-0.5 select-none ${
+                            sec.type === 'award'
+                              ? 'text-blue-600'
+                              : sec.type === 'limiting'
+                              ? 'text-amber-600'
+                              : 'text-slate-500'
+                          }`}
+                        >
+                          •
+                        </span>
+                        <span>{pt}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* BUKTI POSITIF & PEMBATAS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             {/* Positive Evidence */}
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
-              <div className="flex items-center space-x-1.5 font-black text-emerald-800 mb-1.5 text-[11px] uppercase tracking-wider">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3.5">
+              <div className="flex items-center space-x-1.5 font-black text-emerald-800 mb-2 text-[11px] uppercase tracking-wider">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Karakteristik Positif Terpenuhi</span>
               </div>
               {crit.positiveEvidence.length > 0 ? (
-                <ul className="space-y-1 text-slate-700 font-medium">
-                  {crit.positiveEvidence.map((item, idx) => (
-                    <li key={idx} className="flex items-start space-x-1.5">
-                      <span className="text-emerald-600 font-bold">•</span>
+                <ul className="space-y-1.5 text-slate-700 font-medium">
+                  {crit.positiveEvidence.flatMap(item => splitTextIntoBulletPoints(item)).map((item, idx) => (
+                    <li key={idx} className="flex items-start space-x-2">
+                      <span className="text-emerald-600 font-black mt-0.5 select-none">•</span>
                       <span className="leading-relaxed">{item}</span>
                     </li>
                   ))}
@@ -323,16 +409,16 @@ function renderCriterionCard(crit: NormalizedCriterion, isExpanded: boolean, onT
             </div>
 
             {/* Limiting Evidence */}
-            <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3">
-              <div className="flex items-center space-x-1.5 font-black text-amber-900 mb-1.5 text-[11px] uppercase tracking-wider">
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3.5">
+              <div className="flex items-center space-x-1.5 font-black text-amber-900 mb-2 text-[11px] uppercase tracking-wider">
                 <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
                 <span>Faktor Pembatas / Kesalahan</span>
               </div>
               {crit.limitingEvidence.length > 0 ? (
-                <ul className="space-y-1 text-slate-700 font-medium">
-                  {crit.limitingEvidence.map((item, idx) => (
-                    <li key={idx} className="flex items-start space-x-1.5">
-                      <span className="text-amber-600 font-bold">•</span>
+                <ul className="space-y-1.5 text-slate-700 font-medium">
+                  {crit.limitingEvidence.flatMap(item => splitTextIntoBulletPoints(item)).map((item, idx) => (
+                    <li key={idx} className="flex items-start space-x-2">
+                      <span className="text-amber-600 font-black mt-0.5 select-none">•</span>
                       <span className="leading-relaxed">{item}</span>
                     </li>
                   ))}
@@ -345,16 +431,121 @@ function renderCriterionCard(crit: NormalizedCriterion, isExpanded: boolean, onT
 
           {/* FEEDBACK / REKOMENDASI */}
           {crit.feedback && (
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3">
-              <div className="flex items-center space-x-1.5 font-black text-indigo-900 mb-1 text-[11px] uppercase tracking-wider">
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3.5">
+              <div className="flex items-center space-x-1.5 font-black text-indigo-900 mb-2 text-[11px] uppercase tracking-wider">
                 <Lightbulb className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Saran Peningkatan (Feedback)</span>
               </div>
-              <p className="leading-relaxed text-slate-800 font-medium">{crit.feedback}</p>
+              <ul className="space-y-1.5 text-xs text-slate-800 font-medium">
+                {splitTextIntoBulletPoints(crit.feedback).map((pt, idx) => (
+                  <li key={idx} className="flex items-start space-x-2 leading-relaxed">
+                    <span className="text-indigo-600 font-bold mt-0.5 select-none">•</span>
+                    <span>{pt}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
       )}
     </div>
   );
+}
+
+interface ParsedReasonSection {
+  title: string;
+  badge: string;
+  type: 'award' | 'limiting' | 'general';
+  points: string[];
+}
+
+export function splitTextIntoBulletPoints(text?: string): string[] {
+  if (!text || typeof text !== 'string') return [];
+  const clean = text.trim();
+  if (!clean) return [];
+
+  const rawLines = clean
+    .split(/\r?\n|(?:\s*•\s*)|\s*;\s*|(?<=[.!?])\s+(?=[A-Z0-9\(\[])/g)
+    .map(line => line.trim())
+    .map(line => line.replace(/^[-*•\d+.\)]\s*/, '').trim())
+    .filter(line => line.length > 2);
+
+  if (rawLines.length > 0) return rawLines;
+  return [clean];
+}
+
+export function parseDescriptorReason(rawReason: string, score: number | string): ParsedReasonSection[] {
+  if (!rawReason || !rawReason.trim()) {
+    return [{
+      title: 'Catatan Deskriptor',
+      badge: 'Umum',
+      type: 'general',
+      points: ['Belum ada catatan deskriptor.']
+    }];
+  }
+
+  const text = rawReason.trim();
+
+  // Pattern 1: Part A (Alasan Pemberian Band) & Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi)
+  const partAPattern = /(?:Part\s*A[^\:]*:\s*)([\s\S]*?)(?=(?:Part\s*B[^\:]*:)|$)/i;
+  const partBPattern = /(?:Part\s*B[^\:]*:\s*)([\s\S]*)$/i;
+
+  const matchA = text.match(partAPattern);
+  const matchB = text.match(partBPattern);
+
+  if (matchA || matchB) {
+    const sections: ParsedReasonSection[] = [];
+    if (matchA && matchA[1]?.trim()) {
+      sections.push({
+        title: `Alasan Pemberian Band ${score !== '-' ? score : ''}`.trim(),
+        badge: 'Dasar Penilaian',
+        type: 'award',
+        points: splitTextIntoBulletPoints(matchA[1])
+      });
+    }
+    if (matchB && matchB[1]?.trim()) {
+      sections.push({
+        title: 'Faktor Pembatas (Belum Mencapai Band Lebih Tinggi)',
+        badge: 'Faktor Pembatas',
+        type: 'limiting',
+        points: splitTextIntoBulletPoints(matchB[1])
+      });
+    }
+    if (sections.length > 0) return sections;
+  }
+
+  // Pattern 2: Supported Band X because... Not Band Y because...
+  const suppPattern = /(Supported\s+Band\s+\d+[^.]*\..*?)(?=(?:Not\s+Band|\bBelum\s+mencapai\b)|$)/is;
+  const notPattern = /((?:Not\s+Band|Belum\s+mencapai\s+Band)\s+\d+[\s\S]*)$/is;
+  const matchSupp = text.match(suppPattern);
+  const matchNot = text.match(notPattern);
+
+  if (matchSupp || matchNot) {
+    const sections: ParsedReasonSection[] = [];
+    if (matchSupp && matchSupp[1]?.trim()) {
+      sections.push({
+        title: `Kesesuaian Band ${score !== '-' ? score : ''}`.trim(),
+        badge: 'Dasar Penilaian',
+        type: 'award',
+        points: splitTextIntoBulletPoints(matchSupp[1])
+      });
+    }
+    if (matchNot && matchNot[1]?.trim()) {
+      sections.push({
+        title: 'Syarat / Batasan Naik Band',
+        badge: 'Faktor Pembatas',
+        type: 'limiting',
+        points: splitTextIntoBulletPoints(matchNot[1])
+      });
+    }
+    if (sections.length > 0) return sections;
+  }
+
+  // Fallback: Split by sentences/bullets
+  return [{
+    title: `Poin Penilaian (Band ${score !== '-' ? score : ''})`.trim(),
+    badge: 'Kriteria Rubrik',
+    type: 'general',
+    points: splitTextIntoBulletPoints(text)
+  }];
 }

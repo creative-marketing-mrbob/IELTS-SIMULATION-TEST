@@ -119,6 +119,7 @@ const CURRENT_SESSION_TOKEN_KEY = 'mrbob_ielts_curr_session_token_v4';
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const sessionToken = localStorage.getItem(CURRENT_SESSION_TOKEN_KEY);
   const response = await fetch(`/api/supabase${path}`, {
+    credentials: 'same-origin',
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -240,11 +241,12 @@ class DatabaseService {
 
   public async triggerAutoAiEvaluation(
     resultId: string,
-    section: 'writing' | 'speaking'
+    section: 'writing' | 'speaking',
+    force: boolean = false
   ): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
     return api<{ success: boolean; skipped?: boolean; error?: string }>('/ai/auto-evaluate', {
       method: 'POST',
-      body: JSON.stringify({ resultId, section })
+      body: JSON.stringify({ resultId, section, force })
     });
   }
 }

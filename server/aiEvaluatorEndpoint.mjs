@@ -60,13 +60,13 @@ CRITICAL RULES:
 2. For EVERY criterion, assign an INTEGER band score from 1 to 9 (e.g. 4, 5, 6, 7, 8, 9). Do NOT assign decimals like 6.3 or 5.8.
 3. Select the HIGHEST band whose positive characteristics are sufficiently supported by actual candidate response evidence.
 4. If performance sits between descriptors, choose the lower fully supported descriptor.
-5. In descriptorReason, provide a CLEAR, RIGOROUS EXPLANATION for the assigned band:
-   - Part A (Alasan Pemberian Band): Explain specifically which demonstrated features of the candidate's response justify awarding this band according to Cambridge descriptors.
-   - Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi): Explicitly detail what errors, limitations, or missing elements prevent the response from reaching the next higher band (e.g. "Diberikan Band 5 karena... Belum mencapai Band 6 karena...").
-   This explanation serves as educational calibration for tutors and candidates.
+5. In descriptorReason, provide a CLEAR, POINT-BY-POINT EXPLANATION for the assigned band:
+   - Part A (Alasan Pemberian Band): Concise points explaining specifically which demonstrated features of the candidate's response justify awarding this band according to Cambridge descriptors.
+   - Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi): Concise points detailing what errors, limitations, or missing elements prevent reaching the next higher band (e.g. "Diberikan Band 5 karena... Belum mencapai Band 6 karena...").
+   Use short, structured sentences or bullet points. Do NOT write long winding paragraphs.
 6. Provide short, exact quote excerpts in positiveEvidence and limitingEvidence from the candidate text. Do NOT invent sentences the candidate did not write.
 7. If the candidate response is empty or <= 20 words, assign Band 1 or 2 with an underlength warning.
-8. Keep descriptorReason detailed (2-3 sentences), and feedback practical and constructive.
+8. Keep descriptorReason detailed and concise, and feedback practical and constructive.
 
 Return JSON only with task1.taskAchievement, task1.coherenceCohesion, task1.lexicalResource, task1.grammaticalRangeAccuracy, task2.taskResponse, task2.coherenceCohesion, task2.lexicalResource, task2.grammaticalRangeAccuracy. Each criterion must include band, positiveEvidence, limitingEvidence, descriptorReason, feedback, confidence.
 `;
@@ -85,10 +85,10 @@ CRITICAL RULES:
 7. Pronunciation MUST ALWAYS be assigned an INTEGER band score from 1 to 9 with status = "AI_EVALUATED".
    - When Audio Evidence Supplied To Model is YES, listen directly to the audio for phonological features: individual sound clarity (phonemes), word stress, sentence stress, rhythm, and intonation patterns.
    - When Audio Evidence Supplied To Model is NO or audio is unreadable, estimate pronunciation score based on speech tempo, fluency markers, and communication coherence with an explicit note in descriptorReason. NEVER return pronunciation.band = null or REQUIRES_TUTOR_EVALUATION.
-8. In descriptorReason for EVERY criterion (fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation), provide a CLEAR, RIGOROUS EXPLANATION:
-   - Part A (Alasan Pemberian Band): Explain specifically what features of the candidate's speech justify this band under Cambridge descriptors.
-   - Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi): Explicitly detail what hesitations, grammatical inaccuracies, lexical repetition, or pronunciation features prevent the candidate from reaching the next higher band (e.g. "Diberikan Band 5 untuk FC karena... Belum mencapai Band 6 karena...").
-   This explanation is critical for tutor calibration and diagnostic transparency.
+8. In descriptorReason for EVERY criterion (fluencyCoherence, lexicalResource, grammaticalRangeAccuracy, pronunciation), provide a CLEAR, POINT-BY-POINT EXPLANATION:
+   - Part A (Alasan Pemberian Band): Concise points explaining specifically what features of the candidate's speech justify this band under Cambridge descriptors.
+   - Part B (Faktor Pembatas / Alasan Belum Mencapai Band Lebih Tinggi): Concise points detailing what hesitations, grammatical inaccuracies, lexical repetition, or pronunciation features prevent reaching the next higher band (e.g. "Diberikan Band 5 untuk FC karena... Belum mencapai Band 6 karena...").
+   Use short, structured sentences or bullet points. Do NOT write long winding paragraphs.
 9. Quote short excerpts or phonological observations for positiveEvidence and limitingEvidence.
 10. Keep feedback concise and actionable for candidate progression.
 
@@ -511,12 +511,20 @@ function formatSpeakingTranscript(transcript, duration) {
   }
   const dur = Number(duration || 0);
   if (dur > 0) {
-    return `(Recorded audio: ${dur} seconds. Transcript unavailable, audio stored in secure portal for tutor playback)`;
+    return `[Candidate successfully recorded and submitted spoken response (${dur} seconds). Spoken answers completed by candidate.]`;
   }
   return '(No recording or transcript submitted)';
 }
 
 function buildSpeakingPrompt(user, answers, hasAudio) {
+  const p1Dur = Number(answers.part1Duration || 0);
+  const p2Dur = Number(answers.part2Duration || 0);
+  const p3Dur = Number(answers.part3Duration || 0);
+  const partsRecordedCount = (p1Dur > 0 ? 1 : 0) + (p2Dur > 0 ? 1 : 0) + (p3Dur > 0 ? 1 : 0);
+  const multiPartNote = partsRecordedCount >= 2
+    ? `\nNOTE ON CANDIDATE COMPLETION: Candidate recorded spoken answers for multiple sections (Part 1: ${p1Dur}s, Part 2: ${p2Dur}s, Part 3: ${p3Dur}s). Do NOT claim or penalize candidate as having skipped or left parts empty when recorded duration is present. Evaluate overall English proficiency based on speech samples.\n`
+    : '';
+
   if (isQaSpeakingAnswers(answers)) {
     const qaBlocks = qaSpeakingPromptItems.map(([label, key, prompt]) => `
 === SPEAKING ${label.toUpperCase()} ===
@@ -534,7 +542,7 @@ Candidate ID: ${user.candidateId}
 Result ID: ${user.resultId}
 Candidate Name: ${user.fullName}
 Target Band: ${user.targetScore}
-Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}
+Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}
 
 ${qaBlocks}`;
   }
@@ -545,7 +553,7 @@ Candidate ID: ${user.candidateId}
 Result ID: ${user.resultId}
 Candidate Name: ${user.fullName}
 Target Band: ${user.targetScore}
-Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}
+Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}
 
 === SPEAKING PART 1 ===
 Original prompts:

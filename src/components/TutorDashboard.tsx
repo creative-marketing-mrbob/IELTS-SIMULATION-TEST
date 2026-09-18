@@ -298,6 +298,22 @@ export const TutorDashboard: React.FC = () => {
     setSubmissions(Object.values(all).map(candidateDataToEvaluation));
   };
 
+  const handleReEvaluateAi = async (section: 'writing' | 'speaking') => {
+    if (!selected?.resultId) return;
+    try {
+      await dbService.triggerAutoAiEvaluation(selected.resultId, section, true);
+      const all = await dbService.getTutorCandidates();
+      const updatedList = Object.values(all).map(candidateDataToEvaluation);
+      setSubmissions(updatedList);
+      const updated = updatedList.find(c => c.resultId === selected.resultId);
+      if (updated) {
+        setSelected(updated);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal mengevaluasi ulang AI.');
+    }
+  };
+
   const openCandidate = (candidate: TestEvaluation) => {
     setSelected(candidate);
     setActiveTab('info');
@@ -638,7 +654,11 @@ export const TutorDashboard: React.FC = () => {
           <div className="space-y-5">
             <SectionStatusBanner status={sectionStatus(selected, 'writing')} />
             {selected.manualChecks?.sectionStatuses?.writing?.edited_after_ai_reveal && <BlindCalibrationNotice />}
-            <AiEvaluationBreakdown section="writing" candidate={selected} />
+            <AiEvaluationBreakdown
+              section="writing"
+              candidate={selected}
+              onReEvaluate={() => handleReEvaluateAi('writing')}
+            />
             <WritingTaskCard
               title="TASK 1"
               prompt={String(writingSection?.parts[0]?.content || '')}
@@ -711,7 +731,11 @@ export const TutorDashboard: React.FC = () => {
               );
             })}
 
-            <AiEvaluationBreakdown section="speaking" candidate={selected} />
+            <AiEvaluationBreakdown
+              section="speaking"
+              candidate={selected}
+              onReEvaluate={() => handleReEvaluateAi('speaking')}
+            />
 
             <div className="rounded-3xl border border-[#e6eaf2] bg-white p-4 shadow-soft sm:p-6">
               <h3 className="mb-4 text-base font-extrabold text-[#08245c]">Overall Speaking Assessment</h3>

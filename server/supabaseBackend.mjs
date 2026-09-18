@@ -900,13 +900,13 @@ async function candidateIdForSessionToken(token) {
 }
 
 async function canAccessCandidate(req, candidateId) {
-  if (isAdminSessionValid(req)) return true;
+  if (isAdminSessionValid(req) || isStaffSessionValid(req)) return true;
   const sessionCandidateId = await candidateIdForSessionToken(req.headers['x-session-token']);
   return Boolean(sessionCandidateId && sessionCandidateId === candidateId);
 }
 
 async function canAccessResult(req, resultId) {
-  if (isAdminSessionValid(req)) return true;
+  if (isAdminSessionValid(req) || isStaffSessionValid(req)) return true;
   const rows = await select('candidates', `?result_id=eq.${encodeURIComponent(resultId)}&limit=1`);
   const candidate = rows?.[0];
   if (!candidate) return false;
@@ -1227,7 +1227,7 @@ async function autoEvaluateSection(req, body) {
 
   const latestActive = (await select('ai_assessments', `?result_id=eq.${encodeURIComponent(resultId)}&section=eq.${encodeURIComponent(section)}&is_active=eq.true&order=evaluation_timestamp.desc&limit=1`))?.[0];
   const currentHash = crypto.createHash('sha256').update(JSON.stringify({ section, user, answers })).digest('hex');
-  if (latestActive?.input_hash === currentHash && latestActive.status === 'AI EVALUATED') {
+  if (!body?.force && latestActive?.input_hash === currentHash && latestActive.status === 'AI EVALUATED') {
     return { success: true, skipped: true, status: latestActive.status };
   }
 
