@@ -33,6 +33,15 @@ function sendJson(res, status, payload) {
 }
 
 function readJsonBody(req) {
+  // Vercel parses JSON before invoking the function; local Node uses a stream.
+  if (req.body !== undefined) {
+    try {
+      return Promise.resolve(typeof req.body === 'string' || Buffer.isBuffer(req.body)
+        ? JSON.parse(req.body.toString() || '{}') : req.body);
+    } catch {
+      return Promise.reject(new Error('Invalid JSON request body.'));
+    }
+  }
   return new Promise((resolve, reject) => {
     let raw = '';
     req.on('data', chunk => {
