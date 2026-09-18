@@ -32,6 +32,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { AiEvaluationBreakdown } from './Common/AiEvaluationBreakdown';
+import { TutorAudioPlayer } from './Common/TutorAudioPlayer';
 
 type TutorTab = 'info' | 'writing' | 'speaking' | 'objective';
 type TutorSectionKey = 'reading' | 'listening' | 'writing' | 'speaking';
@@ -697,19 +698,12 @@ export const TutorDashboard: React.FC = () => {
                     {item.prompt}
                     </p>
                   </div>
-                  <p className="mb-2 text-[11px] font-black uppercase text-slate-400">Rekaman Peserta</p>
-                  <button
-                    onClick={() => playAudio(item.key, audio)}
-                    disabled={!audio}
-                    className="mb-3 flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white disabled:bg-slate-300"
-                  >
-                    <Play className="h-4 w-4" />
-                    {playingKey === item.key ? 'Playing' : 'Play / Pause'}
-                  </button>
-                  <WaveformMini active={playingKey === item.key} />
-                  <p className="mt-3 text-sm font-bold text-slate-700">
-                    Durasi: <span className="font-mono">{duration ? formatDuration(duration) : '00:00'}</span>
-                  </p>
+                  <p className="mb-2 text-[11px] font-black uppercase text-slate-400">Rekaman Peserta (Player Audio & Scrubber)</p>
+                  <TutorAudioPlayer
+                    audioPath={audio}
+                    label={item.label}
+                    fallbackDuration={duration}
+                  />
                   <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">
                     <strong>Transcript:</strong> {transcript || 'No transcript available.'}
                   </p>

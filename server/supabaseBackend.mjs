@@ -741,7 +741,7 @@ async function hydrateCandidate(candidateId) {
   evaluation.isQa = isQa;
 
   if (evaluation && aiRows?.length) {
-    evaluation.aiAssessmentHistory = aiRows.map(aiRow => ({
+    const history = aiRows.map(aiRow => ({
       candidate_id: aiRow.candidate_id,
       result_id: aiRow.result_id,
       section: aiRow.section,
@@ -764,6 +764,58 @@ async function hydrateCandidate(candidateId) {
       status: aiRow.status,
       is_active: aiRow.is_active
     }));
+
+    evaluation.aiAssessmentHistory = history;
+
+    const activeWriting = history.filter(r => r.section === 'writing' && r.is_active).pop() ||
+                          history.filter(r => r.section === 'writing').pop();
+    const activeSpeaking = history.filter(r => r.section === 'speaking' && r.is_active).pop() ||
+                           history.filter(r => r.section === 'speaking').pop();
+
+    evaluation.aiAssessments = {
+      ...(evaluation.aiAssessments || {}),
+      ...(activeWriting ? { writing: activeWriting } : {}),
+      ...(activeSpeaking ? { speaking: activeSpeaking } : {})
+    };
+
+    if (activeWriting && typeof activeWriting.calculated_band === 'number') {
+      evaluation.writing = {
+        ...(evaluation.writing || {}),
+        band: activeWriting.calculated_band,
+        assessmentStatus: 'AI Evaluated'
+      };
+    }
+
+    if (activeSpeaking && typeof activeSpeaking.calculated_band === 'number') {
+      evaluation.speaking = {
+        ...(evaluation.speaking || {}),
+        band: activeSpeaking.calculated_band,
+        assessmentStatus: 'AI Evaluated'
+      };
+    }
+
+    if (!evaluation.dualComparison) {
+      evaluation.dualComparison = { activeMode: 'AI' };
+    }
+    const rBand = typeof evaluation.reading?.band === 'number' ? evaluation.reading.band : null;
+    const lBand = typeof evaluation.listening?.band === 'number' ? evaluation.listening.band : null;
+    const wBand = typeof activeWriting?.calculated_band === 'number' ? activeWriting.calculated_band : null;
+    const sBand = typeof activeSpeaking?.calculated_band === 'number' ? activeSpeaking.calculated_band : null;
+
+    evaluation.dualComparison.aiAssessment = {
+      ...(evaluation.dualComparison.aiAssessment || {}),
+      readingBand: rBand,
+      listeningBand: lBand,
+      writingBand: wBand ?? evaluation.dualComparison.aiAssessment?.writingBand,
+      speakingBand: sBand ?? evaluation.dualComparison.aiAssessment?.speakingBand,
+      overallBand: (rBand !== null && lBand !== null && wBand !== null && sBand !== null)
+        ? Math.round(((rBand + lBand + wBand + sBand) / 4) * 2) / 2
+        : evaluation.dualComparison.aiAssessment?.overallBand
+    };
+
+    if (rBand !== null && lBand !== null && wBand !== null && sBand !== null) {
+      evaluation.overallBand = Math.round(((rBand + lBand + wBand + sBand) / 4) * 2) / 2;
+    }
   }
 
   return {

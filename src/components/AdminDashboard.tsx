@@ -382,15 +382,22 @@ export const AdminDashboard: React.FC<{ mode?: AdminDashboardMode }> = ({ mode =
   const handleTriggerAIEvaluation = async () => {
     if (!selectedCandidate) return;
     setIsEvaluatingAI(true);
-    setAiStatusMessage("AI sedang menilai jawaban kandidat...");
+    setAiStatusMessage("AI sedang menganalisis & menilai Writing...");
 
     const wRes = await evaluateWritingWithAI(selectedCandidate.user, selectedCandidate.answers.writing);
+
+    setAiStatusMessage("AI sedang menganalisis rekaman Speaking & Pronunciation...");
     const sRes = await evaluateSpeakingWithAI(selectedCandidate.user, selectedCandidate.answers.speaking);
 
     setIsEvaluatingAI(false);
 
     if (!wRes.success && !sRes.success) {
-      setAiStatusMessage(`AI belum berhasil menilai. Writing: ${wRes.error || 'belum tersedia'} | Speaking: ${sRes.error || 'belum tersedia'}`);
+      const is504 = (wRes.error || '').includes('504') || (sRes.error || '').includes('504');
+      if (is504) {
+        setAiStatusMessage('AI Serverless Timeout (504): Proses evaluasi model AI memakan waktu lebih lama dari batas Vercel (10-15s). Rekomendasi: Gunakan Google Gemini API Key resmi (AIza...) di Environment/Pengaturan agar evaluasi selesai dalam 2 detik tanpa batas timeout.');
+      } else {
+        setAiStatusMessage(`AI belum berhasil menilai. Writing: ${wRes.error || 'belum tersedia'} | Speaking: ${sRes.error || 'belum tersedia'}`);
+      }
       return;
     }
 

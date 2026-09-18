@@ -3,7 +3,7 @@ import { useTest } from '../../context/TestContext';
 import { speakingTasks } from '../../data/speakingQuestions';
 import { audioStorage } from '../../services/audioStorage';
 import { convertBlobToWav } from '../../utils/audioConversion';
-import { Mic, Square, Play, Pause, RotateCcw, CheckCircle2, Send, AlertCircle } from 'lucide-react';
+import { Mic, Square, Play, Pause, RotateCcw, CheckCircle2, Send, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SpeakingSectionProps {
   onSubmitRequest: () => void;
@@ -24,31 +24,28 @@ type SaveState = 'idle' | 'recording' | 'processing' | 'uploading' | 'saved' | '
 const qaSpeakingTargets: RecordingTarget[] = [
   { key: 'part1_q1', label: 'Part 1 Question 1', partId: 1, prompt: 'How many hours do you usually sleep at night?', recordTimeSeconds: 60, answerAudioKey: 'part1_q1_audio', answerDurationKey: 'part1_q1_duration' },
   { key: 'part1_q2', label: 'Part 1 Question 2', partId: 1, prompt: 'Do you sometimes sleep during the day? Why / why not?', recordTimeSeconds: 60, answerAudioKey: 'part1_q2_audio', answerDurationKey: 'part1_q2_duration' },
-  { key: 'part2', label: 'Part 2 Cue Card', partId: 2, prompt: `Describe a time when you met someone who you became good friends with.
-
-You should say:
-• Who you met
-• When and where you met this person
-• What you thought about this person when you first met
-• And explain why you think you became good friends with this person.`, recordTimeSeconds: 120, answerAudioKey: 'part2_audio', answerDurationKey: 'part2_duration' },
+  { key: 'part2', label: 'Part 2 Cue Card', partId: 2, prompt: 'Describe a time when you met someone who you became good friends with.', recordTimeSeconds: 120, answerAudioKey: 'part2_audio', answerDurationKey: 'part2_duration' },
   { key: 'part3_q1', label: 'Part 3 Question 1', partId: 3, prompt: 'How important is it for children to have lots of friends at school?', recordTimeSeconds: 60, answerAudioKey: 'part3_q1_audio', answerDurationKey: 'part3_q1_duration' },
   { key: 'part3_q2', label: 'Part 3 Question 2', partId: 3, prompt: 'Do you think it is wrong for parents to influence which friends their children have?', recordTimeSeconds: 60, answerAudioKey: 'part3_q2_audio', answerDurationKey: 'part3_q2_duration' }
 ];
 
-const splitPromptLines = (lines: string[] = []) => lines.flatMap(line =>
-  line.split('\n').map(item => item.replace(/^•\s*/, '').trim()).filter(Boolean)
-);
+const splitPromptLines = (bulletPoints: string[] = []) => {
+  return bulletPoints
+    .flatMap(item => String(item || '').split('\n'))
+    .map(line => line.replace(/^[•\-\*\s]+/, '').trim())
+    .filter(Boolean);
+};
 
-const AUDIO_ACTIVE_THRESHOLD = 0.018;
-const EFFECTIVE_GAIN_MULTIPLIER = 1.5;
+const AUDIO_ACTIVE_THRESHOLD = 0.055;
+const EFFECTIVE_GAIN_MULTIPLIER = 2.4;
 
 export const SpeakingSection: React.FC<SpeakingSectionProps> = ({ onSubmitRequest }) => {
   const {
-    user,
     answers,
+    user,
+    isQaMode,
     updateSpeakingAnswer,
     updateSpeakingQaAnswer,
-    isQaMode,
     selectedAudioDeviceId,
     setSelectedAudioDeviceId,
     hasCompletedAudioSetup,
@@ -60,7 +57,8 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({ onSubmitReques
   const [setupMessage, setSetupMessage] = useState('Pilih mikrofon, lalu jalankan tes mikrofon.');
   const [setupLevel, setSetupLevel] = useState(0);
   const [setupChecks, setSetupChecks] = useState({ mic: false, recording: false, playback: false });
-  const [micGain, setMicGain] = useState(100);
+  const [micGain, setMicGain] = useState(160);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [sampleSeconds, setSampleSeconds] = useState(0);
   const [sampleUrl, setSampleUrl] = useState('');
   const [isSampleRecording, setIsSampleRecording] = useState(false);
@@ -496,8 +494,8 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({ onSubmitReques
               </div>
               <input
                 type="range"
-                min={40}
-                max={180}
+                min={50}
+                max={250}
                 value={micGain}
                 onChange={event => setMicGain(Number(event.target.value))}
                 className="w-full accent-blue-600"
@@ -565,105 +563,182 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({ onSubmitReques
           </div>
         </div>
 
-        {isQaMode && renderTaskPrompts(2)}
+        {/* Progress & Stepper Pills */}
+        <div className="bg-white rounded-2xl p-4 border border-[#e6eaf2] shadow-soft space-y-3">
+          <div className="flex items-center justify-between text-xs font-extrabold text-slate-600">
+            <div className="flex items-center space-x-2">
+              <Mic className="w-4 h-4 text-red-500" />
+              <span className="text-[#08245c]">
+                {isQaMode ? `QA Speaking (Soal ${currentStepIndex + 1} dari ${targets.length})` : `Speaking Section (Soal ${currentStepIndex + 1} dari ${targets.length})`}
+              </span>
+            </div>
+            <div className="flex items-center space-x-2 text-xs font-bold text-slate-500">
+              <span>Saved: <strong>{recordedCount} / {targets.length}</strong></span>
+            </div>
+          </div>
 
-        {targets.map((target) => {
-          const recordedAudio = (answers.speaking as any)[target.answerAudioKey] as string | undefined;
-          const savedDuration = (answers.speaking as any)[target.answerDurationKey] as number | undefined;
-          const isRecordingThis = activeRecordingKey === target.key;
-          const isPlayingThis = playingKey === target.key;
-          const saveState = saveStates[target.key] || (recordedAudio ? 'saved' : 'idle');
+          {/* Stepper navigation bar */}
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-100">
+            {targets.map((tgt, idx) => {
+              const isTgtSaved = Boolean((answers.speaking as any)[tgt.answerAudioKey]);
+              const isCurrent = idx === currentStepIndex;
+              return (
+                <button
+                  key={tgt.key}
+                  type="button"
+                  onClick={() => {
+                    if (activeRecordingKey === null && !Object.values(saveStates).some(s => s === 'uploading' || s === 'processing')) {
+                      setCurrentStepIndex(idx);
+                    }
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all ${
+                    isCurrent
+                      ? 'bg-[#08245c] text-white shadow-sm ring-2 ring-blue-400'
+                      : isTgtSaved
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                >
+                  {isTgtSaved && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />}
+                  <span className="truncate">{tgt.label.replace('Speaking ', '')}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {(() => {
+          const currentTarget = targets[currentStepIndex] || targets[0];
+          const currentRecordedAudio = (answers.speaking as any)[currentTarget.answerAudioKey] as string | undefined;
+          const currentSavedDuration = (answers.speaking as any)[currentTarget.answerDurationKey] as number | undefined;
+          const isCurrentRecording = activeRecordingKey === currentTarget.key;
+          const isCurrentPlaying = playingKey === currentTarget.key;
+          const currentSaveState = saveStates[currentTarget.key] || (currentRecordedAudio ? 'saved' : 'idle');
+          const isCurrentSaved = currentSaveState === 'saved' || Boolean(currentRecordedAudio && currentSaveState !== 'uploading' && currentSaveState !== 'processing' && currentSaveState !== 'failed');
 
           return (
-            <div key={target.key} className="bg-white rounded-3xl p-7 sm:p-8 border border-[#e6eaf2] shadow-soft space-y-5">
-              <div className="border-b border-slate-100 pb-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-red-500 bg-red-50 px-2.5 py-1 rounded-md">{target.label}</span>
-                  {saveState === 'saved' && (
-                    <span className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Saved ✓</span>
-                    </span>
-                  )}
-                </div>
-                <h3 className="whitespace-pre-line text-base sm:text-lg font-extrabold text-[#08245c] leading-relaxed mt-3">{target.prompt}</h3>
-                {!isQaMode && renderTaskPrompts(target.partId)}
-              </div>
+            <>
+              {isQaMode && renderTaskPrompts(2)}
 
-              {saveState === 'failed' && (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700 flex items-start space-x-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>Rekaman belum berhasil tersimpan. Silakan rekam ulang.</span>
-                </div>
-              )}
-
-              <div className="bg-[#f8fbff] p-5 sm:p-6 rounded-2xl border border-[#e6eaf2] flex flex-col items-center justify-center space-y-4 text-center">
-                <div className="w-full max-w-sm h-12 bg-white rounded-xl border border-slate-200 p-2 flex items-center justify-center space-x-1 overflow-hidden">
-                  {audioLevel.map((height, i) => (
-                    <div key={i} className={`w-1.5 rounded-full transition-all duration-100 ${isRecordingThis ? 'bg-red-500' : recordedAudio ? 'bg-emerald-500' : 'bg-slate-300'}`} style={{ height: `${isRecordingThis ? height : recordedAudio ? 16 : 6}px` }} />
-                  ))}
-                </div>
-
-                {(isRecordingThis || saveState === 'processing' || saveState === 'uploading') && (
-                  <div className="font-mono text-xs font-black text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-200 animate-pulse flex items-center justify-center space-x-1.5">
-                    {isRecordingThis ? (
-                      <span>Recording: {formatSec(recordSeconds)} / {formatSec(target.recordTimeSeconds)}</span>
-                    ) : saveState === 'processing' ? (
-                      <span>Processing audio...</span>
-                    ) : (
-                      <span>Uploading to secure storage... (1-2s)</span>
+              {/* Active Question Card */}
+              <div key={currentTarget.key} className="bg-white rounded-3xl p-7 sm:p-8 border border-[#e6eaf2] shadow-soft space-y-5 animate-in fade-in duration-200">
+                <div className="border-b border-slate-100 pb-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-red-500 bg-red-50 px-2.5 py-1 rounded-md">{currentTarget.label}</span>
+                    {currentSaveState === 'saved' && (
+                      <span className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Saved ✓</span>
+                      </span>
                     )}
+                  </div>
+                  <h3 className="whitespace-pre-line text-base sm:text-lg font-extrabold text-[#08245c] leading-relaxed mt-3">{currentTarget.prompt}</h3>
+                  {!isQaMode && renderTaskPrompts(currentTarget.partId)}
+                </div>
+
+                {currentSaveState === 'failed' && (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700 flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>Rekaman belum berhasil tersimpan. Silakan rekam ulang.</span>
                   </div>
                 )}
 
-                <div className="w-full max-w-xs space-y-2">
-                  {!isRecordingThis && !recordedAudio && saveState !== 'uploading' && saveState !== 'processing' && (
-                    <button onClick={() => handleStartRecording(target)} disabled={activeRecordingKey !== null} className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-extrabold text-xs sm:text-sm rounded-full shadow-sm transition-all flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50">
-                      <Mic className="w-4 h-4" />
-                      <span>Record Response</span>
-                    </button>
-                  )}
+                <div className="bg-[#f8fbff] p-5 sm:p-6 rounded-2xl border border-[#e6eaf2] flex flex-col items-center justify-center space-y-4 text-center">
+                  <div className="w-full max-w-sm h-12 bg-white rounded-xl border border-slate-200 p-2 flex items-center justify-center space-x-1 overflow-hidden">
+                    {audioLevel.map((height, i) => (
+                      <div key={i} className={`w-1.5 rounded-full transition-all duration-100 ${isCurrentRecording ? 'bg-red-500' : currentRecordedAudio ? 'bg-emerald-500' : 'bg-slate-300'}`} style={{ height: `${isCurrentRecording ? height : currentRecordedAudio ? 16 : 6}px` }} />
+                    ))}
+                  </div>
 
-                  {isRecordingThis && (
-                    <button onClick={handleStopRecording} className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs sm:text-sm rounded-full shadow-lg transition-all flex items-center justify-center space-x-2 animate-pulse active:scale-95">
-                      <Square className="w-3.5 h-3.5 fill-white" />
-                      <span>Stop & Save Recording</span>
-                    </button>
-                  )}
-
-                  {!isRecordingThis && (saveState === 'uploading' || saveState === 'processing') && (
-                    <div className="h-12 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 border border-slate-200">
-                      <span>Menyimpan rekaman...</span>
+                  {(isCurrentRecording || currentSaveState === 'processing' || currentSaveState === 'uploading') && (
+                    <div className="font-mono text-xs font-black text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-200 animate-pulse flex items-center justify-center space-x-1.5">
+                      {isCurrentRecording ? (
+                        <span>Recording: {formatSec(recordSeconds)} / {formatSec(currentTarget.recordTimeSeconds)}</span>
+                      ) : currentSaveState === 'processing' ? (
+                        <span>Processing audio...</span>
+                      ) : (
+                        <span>Uploading...</span>
+                      )}
                     </div>
                   )}
 
-                  {!isRecordingThis && recordedAudio && saveState !== 'uploading' && saveState !== 'processing' && (
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <button onClick={() => handlePlayAudio(target)} className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
-                          {isPlayingThis ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-white" />}
-                          <span>{isPlayingThis ? 'Pause' : 'Play Recording'}</span>
-                        </button>
-                        <button onClick={() => handleStartRecording(target)} disabled={activeRecordingKey !== null} className="px-3.5 h-11 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all flex items-center space-x-1 disabled:opacity-50" title="Re-record">
-                          <RotateCcw className="w-3.5 h-3.5 text-red-500" />
-                          <span>Re-record</span>
-                        </button>
+                  <div className="w-full max-w-xs space-y-2">
+                    {!isCurrentRecording && !currentRecordedAudio && currentSaveState !== 'uploading' && currentSaveState !== 'processing' && (
+                      <button onClick={() => handleStartRecording(currentTarget)} disabled={activeRecordingKey !== null} className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-extrabold text-xs sm:text-sm rounded-full shadow-sm transition-all flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50">
+                        <Mic className="w-4 h-4" />
+                        <span>Record Response</span>
+                      </button>
+                    )}
+
+                    {isCurrentRecording && (
+                      <button onClick={handleStopRecording} className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs sm:text-sm rounded-full shadow-lg transition-all flex items-center justify-center space-x-2 animate-pulse active:scale-95">
+                        <Square className="w-3.5 h-3.5 fill-white" />
+                        <span>Stop & Save Recording</span>
+                      </button>
+                    )}
+
+                    {!isCurrentRecording && (currentSaveState === 'uploading' || currentSaveState === 'processing') && (
+                      <div className="h-12 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 border border-slate-200">
+                        <span>Menyimpan rekaman...</span>
                       </div>
-                      <span className="block text-[10px] font-mono font-bold text-slate-400">Duration: {formatSec(savedDuration || 0)}</span>
-                    </div>
-                  )}
+                    )}
+
+                    {!isCurrentRecording && currentRecordedAudio && currentSaveState !== 'uploading' && currentSaveState !== 'processing' && (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <button onClick={() => handlePlayAudio(currentTarget)} className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
+                            {isCurrentPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-white" />}
+                            <span>{isCurrentPlaying ? 'Pause' : 'Play Recording'}</span>
+                          </button>
+                          <button onClick={() => handleStartRecording(currentTarget)} disabled={activeRecordingKey !== null} className="px-3.5 h-11 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all flex items-center space-x-1 disabled:opacity-50" title="Re-record">
+                            <RotateCcw className="w-3.5 h-3.5 text-red-500" />
+                            <span>Re-record</span>
+                          </button>
+                        </div>
+                        <span className="block text-[10px] font-mono font-bold text-slate-400">Duration: {formatSec(currentSavedDuration || 0)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
 
-        <div className="pt-6 pb-12 flex items-center justify-center">
-          <button onClick={onSubmitRequest} disabled={activeRecordingKey !== null || Object.values(saveStates).some(s => s === 'uploading' || s === 'processing')} className="w-full max-w-md h-14 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-base rounded-full shadow-btn hover:shadow-soft-lg transition-all flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50">
-            <Send className="w-5 h-5" />
-            <span>Submit Speaking Section</span>
-          </button>
-        </div>
+              {/* Navigation Step Controls */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
+                  disabled={currentStepIndex === 0 || activeRecordingKey !== null || currentSaveState === 'uploading' || currentSaveState === 'processing'}
+                  className="w-full sm:w-auto px-6 h-12 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-extrabold text-xs flex items-center justify-center space-x-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Pertanyaan Sebelumnya</span>
+                </button>
+
+                {currentStepIndex < targets.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStepIndex(prev => Math.min(targets.length - 1, prev + 1))}
+                    disabled={!isCurrentSaved || activeRecordingKey !== null || currentSaveState === 'uploading' || currentSaveState === 'processing'}
+                    className="w-full sm:w-auto px-8 h-12 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs flex items-center justify-center space-x-2 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span>{currentSaveState === 'uploading' || currentSaveState === 'processing' ? 'Menyimpan...' : !isCurrentSaved ? 'Rekam & Simpan untuk Lanjut' : 'Lanjut ke Soal Berikutnya'}</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onSubmitRequest}
+                    disabled={recordedCount < targets.length || activeRecordingKey !== null || Object.values(saveStates).some(s => s === 'uploading' || s === 'processing')}
+                    className="w-full sm:w-auto px-8 h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs rounded-full shadow-btn transition-all flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Submit Speaking Section</span>
+                  </button>
+                )}
+              </div>
+            </>
+          );
+        })()}
       </div>
     </div>
   );

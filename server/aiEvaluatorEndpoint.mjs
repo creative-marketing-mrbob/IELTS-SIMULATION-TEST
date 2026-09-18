@@ -951,14 +951,23 @@ export async function evaluateCandidateSection(section, user, answers, forceKie 
   const qaStorageAudioParts = (await Promise.all(qaSpeakingPromptItems.map(([label, key]) => (
     storagePathToGeminiPart(`${label} audio`, answers[`${key}_audio`], isKie)
   )))).flat();
-  const productionAudioParts = [
-    ...dataUrlToGeminiPart('Part 1 audio', answers.part1Audio, isKie),
-    ...dataUrlToGeminiPart('Part 2 audio', answers.part2Audio, isKie),
-    ...dataUrlToGeminiPart('Part 3 audio', answers.part3Audio, isKie),
-    ...(await storagePathToGeminiPart('Part 1 audio', answers.part1Audio, isKie)),
-    ...(await storagePathToGeminiPart('Part 2 audio', answers.part2Audio, isKie)),
-    ...(await storagePathToGeminiPart('Part 3 audio', answers.part3Audio, isKie))
-  ];
+  const primaryAudioPath = answers.part2Audio || answers.part1Audio || answers.part3Audio;
+  const primaryDataUrl = (typeof answers.part2Audio === 'string' && answers.part2Audio.startsWith('data:')) ? answers.part2Audio
+    : ((typeof answers.part1Audio === 'string' && answers.part1Audio.startsWith('data:')) ? answers.part1Audio : answers.part3Audio);
+
+  const productionAudioParts = isKie
+    ? [
+        ...dataUrlToGeminiPart('Part 2 (Cue Card Monologue) audio', primaryDataUrl, isKie),
+        ...(await storagePathToGeminiPart('Part 2 (Cue Card Monologue) audio', primaryAudioPath, isKie))
+      ]
+    : [
+        ...dataUrlToGeminiPart('Part 1 audio', answers.part1Audio, isKie),
+        ...dataUrlToGeminiPart('Part 2 audio', answers.part2Audio, isKie),
+        ...dataUrlToGeminiPart('Part 3 audio', answers.part3Audio, isKie),
+        ...(await storagePathToGeminiPart('Part 1 audio', answers.part1Audio, isKie)),
+        ...(await storagePathToGeminiPart('Part 2 audio', answers.part2Audio, isKie)),
+        ...(await storagePathToGeminiPart('Part 3 audio', answers.part3Audio, isKie))
+      ];
   const audioParts = isQaSpeakingAnswers(answers)
     ? [...qaAudioParts, ...qaStorageAudioParts]
     : productionAudioParts;
