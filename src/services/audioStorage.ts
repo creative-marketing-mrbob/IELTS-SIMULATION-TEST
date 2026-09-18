@@ -41,6 +41,84 @@ class AudioStorageService {
     if (audioData instanceof Blob && audioData.size <= 0) {
       throw new Error('Audio recording is empty.');
     }
+
+    // Attempt 1: Direct signed upload to Supabase Storage CDN
+    // Bypasses Vercel's 4.5MB serverless payload limit, removes Base64 33% bloat, takes 1-2s.
+    try {
+      let audioBlob: Blob;
+      let detectedMime = 'audio/wav';
+
+      if (audioData instanceof Blob) {
+        audioBlob = audioData;
+        detectedMime = audioData.type || 'audio/wav';
+      } else {
+        const match = audioData.match(/^data:([^;,]+)[^,]*;base64,(.+)$/);
+        if (match) {
+          detectedMime = match[1];
+          const binaryStr = atob(match[2]);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          audioBlob = new Blob([bytes], { type: detectedMime });
+        } else {
+          throw new Error('Invalid audio data format.');
+        }
+      }
+
+      const signRes = await fetch('/api/supabase/audio/signed-upload-url', {
+        method: 'POST',
+        headers: this.jsonHeaders(),
+        body: JSON.stringify({
+          resultId,
+          partId,
+          mimeType: detectedMime
+        })
+      });
+
+      const signJson = await signRes.json().catch(() => null);
+      if (signRes.ok && signJson?.success && signJson.data?.uploadUrl) {
+        const { uploadUrl, storagePath, mimeType } = signJson.data;
+
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': mimeType || audioBlob.type || 'audio/wav',
+            'x-upsert': 'true'
+          },
+          body: audioBlob
+        });
+
+        if (uploadRes.ok) {
+          const confirmRes = await fetch('/api/supabase/audio/confirm', {
+            method: 'POST',
+            headers: this.jsonHeaders(),
+            body: JSON.stringify({
+              resultId,
+              partId,
+              storagePath,
+              durationSec,
+              fileSize: audioBlob.size,
+              mimeType: mimeType || audioBlob.type
+            })
+          });
+
+          const confirmJson = await confirmRes.json().catch(() => null);
+          if (confirmRes.ok && confirmJson?.success) {
+            return {
+              storagePath,
+              audioUrl: storagePath,
+              mimeType: mimeType || audioBlob.type,
+              fileSize: audioBlob.size
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Direct Supabase signed upload failed; attempting legacy proxy fallback:', err);
+    }
+
+    // Fallback: Legacy Base64 proxy upload via /api/supabase/audio/upload
     const payload = await this.blobToBase64(audioData);
     if (!payload.mimeType.startsWith('audio/') || !payload.base64) {
       throw new Error('Audio recording format is invalid.');

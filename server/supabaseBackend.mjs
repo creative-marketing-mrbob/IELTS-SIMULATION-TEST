@@ -1283,6 +1283,77 @@ async function uploadAudio(body) {
   };
 }
 
+async function createSignedUploadUrl(body) {
+  const { resultId, partId, mimeType } = body;
+  if (!resultId || !partId) throw new Error('Signed upload URL requires resultId and partId.');
+  const cleanId = String(resultId).replace(/[^a-zA-Z0-9-_]/g, '');
+  const normalizedMime = String(mimeType || '').split(';')[0].toLowerCase();
+  const extension = normalizedMime.includes('wav') ? 'wav' : normalizedMime.includes('mp4') ? 'mp4' : 'webm';
+  const rawPath = `${cleanId}/part-${partId}.${extension}`;
+
+  const cfg = requireSupabase();
+  const response = await fetch(`${cfg.url}/storage/v1/object/upload/sign/${BUCKET}/${rawPath}`, {
+    method: 'POST',
+    headers: {
+      apikey: cfg.serviceRoleKey,
+      Authorization: `Bearer ${cfg.serviceRoleKey}`,
+      'Content-Type': 'application/json',
+      'x-upsert': 'true'
+    },
+    body: JSON.stringify({ expiresIn: 900 })
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to generate signed upload URL: ${response.status}`);
+  }
+  const data = await response.json();
+  const uploadUrl = `${cfg.url}/storage/v1${data.url}`;
+  return {
+    uploadUrl,
+    storagePath: `${BUCKET}/${rawPath}`,
+    mimeType: normalizedMime || 'audio/wav'
+  };
+}
+
+async function confirmAudioUpload(body) {
+  const { resultId, partId, storagePath, durationSec, fileSize, mimeType } = body;
+  if (!resultId || !partId || !storagePath) throw new Error('Confirm audio requires resultId, partId, and storagePath.');
+  
+  const candidateRows = await select('candidates', `?result_id=eq.${encodeURIComponent(resultId)}&limit=1`);
+  const candidate = candidateRows?.[0];
+  if (candidate) {
+    const partKey = String(partId);
+    const qaMap = {
+      part1_q1: { part: 1, question_id: 'speaking-p1-q1' },
+      part1_q2: { part: 1, question_id: 'speaking-p1-q2' },
+      part2: { part: 2, question_id: 'speaking-part-2' },
+      part3_q1: { part: 3, question_id: 'speaking-p3-q1' },
+      part3_q2: { part: 3, question_id: 'speaking-p3-q2' }
+    };
+    const productionMatch = partKey.match(/^part([123])$/);
+    const target = qaMap[partKey] || (productionMatch ? {
+      part: Number(productionMatch[1]),
+      question_id: `speaking-part-${productionMatch[1]}`
+    } : null);
+
+    if (target) {
+      await upsert('speaking_metadata', {
+        candidate_id: candidate.candidate_id,
+        result_id: candidate.result_id,
+        is_qa: isQaCandidate(candidate),
+        part: target.part,
+        question_id: target.question_id,
+        audio_storage_path: storagePath,
+        duration: typeof durationSec === 'number' ? Math.max(1, Math.round(durationSec)) : null,
+        mime_type: mimeType || 'audio/wav',
+        file_size: typeof fileSize === 'number' ? fileSize : null,
+        transcript: null,
+        saved_at: new Date().toISOString()
+      }, 'candidate_id,question_id');
+    }
+  }
+  return { storagePath, success: true };
+}
+
 async function createSignedAudioUrl(storagePath) {
   const path = String(storagePath || '').replace(/^speaking-recordings\//, '');
   const signed = await supabaseFetch(`/storage/v1/object/sign/${BUCKET}/${path}`, {
@@ -1377,6 +1448,26 @@ export async function handleSupabaseApi(req, res) {
     if (route === '/session/resume-code' && req.method === 'POST') {
       const body = await readJsonBody(req);
       sendJson(res, 200, await resumeWithAccessCode(body.whatsapp, body.accessCode));
+      return;
+    }
+
+    if (route === '/audio/signed-upload-url' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      if (!(await canAccessResult(req, body.resultId))) {
+        sendJson(res, 403, { success: false, error: 'Candidate session required for audio upload.' });
+        return;
+      }
+      sendJson(res, 200, { success: true, data: await createSignedUploadUrl(body) });
+      return;
+    }
+
+    if (route === '/audio/confirm' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      if (!(await canAccessResult(req, body.resultId))) {
+        sendJson(res, 403, { success: false, error: 'Candidate session required for audio upload.' });
+        return;
+      }
+      sendJson(res, 200, { success: true, data: await confirmAudioUpload(body) });
       return;
     }
 

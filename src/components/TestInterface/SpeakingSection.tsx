@@ -605,13 +605,19 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({ onSubmitReques
                 </div>
 
                 {(isRecordingThis || saveState === 'processing' || saveState === 'uploading') && (
-                  <div className="font-mono text-xs font-black text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-200">
-                    {isRecordingThis ? `Recording: ${formatSec(recordSeconds)} / ${formatSec(target.recordTimeSeconds)}` : saveState === 'processing' ? 'Processing...' : 'Uploading...'}
+                  <div className="font-mono text-xs font-black text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-200 animate-pulse flex items-center justify-center space-x-1.5">
+                    {isRecordingThis ? (
+                      <span>Recording: {formatSec(recordSeconds)} / {formatSec(target.recordTimeSeconds)}</span>
+                    ) : saveState === 'processing' ? (
+                      <span>Processing audio...</span>
+                    ) : (
+                      <span>Uploading to secure storage... (1-2s)</span>
+                    )}
                   </div>
                 )}
 
                 <div className="w-full max-w-xs space-y-2">
-                  {!isRecordingThis && !recordedAudio && saveState !== 'uploading' && (
+                  {!isRecordingThis && !recordedAudio && saveState !== 'uploading' && saveState !== 'processing' && (
                     <button onClick={() => handleStartRecording(target)} disabled={activeRecordingKey !== null} className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-extrabold text-xs sm:text-sm rounded-full shadow-sm transition-all flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50">
                       <Mic className="w-4 h-4" />
                       <span>Record Response</span>
@@ -625,14 +631,20 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({ onSubmitReques
                     </button>
                   )}
 
-                  {!isRecordingThis && recordedAudio && (
+                  {!isRecordingThis && (saveState === 'uploading' || saveState === 'processing') && (
+                    <div className="h-12 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 border border-slate-200">
+                      <span>Menyimpan rekaman...</span>
+                    </div>
+                  )}
+
+                  {!isRecordingThis && recordedAudio && saveState !== 'uploading' && saveState !== 'processing' && (
                     <div className="space-y-2">
                       <div className="flex items-center space-x-2">
                         <button onClick={() => handlePlayAudio(target)} className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
                           {isPlayingThis ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-white" />}
                           <span>{isPlayingThis ? 'Pause' : 'Play Recording'}</span>
                         </button>
-                        <button onClick={() => handleStartRecording(target)} disabled={activeRecordingKey !== null} className="px-3.5 h-11 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all flex items-center space-x-1" title="Re-record">
+                        <button onClick={() => handleStartRecording(target)} disabled={activeRecordingKey !== null} className="px-3.5 h-11 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all flex items-center space-x-1 disabled:opacity-50" title="Re-record">
                           <RotateCcw className="w-3.5 h-3.5 text-red-500" />
                           <span>Re-record</span>
                         </button>
@@ -647,7 +659,7 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({ onSubmitReques
         })}
 
         <div className="pt-6 pb-12 flex items-center justify-center">
-          <button onClick={onSubmitRequest} disabled={activeRecordingKey !== null || Object.values(saveStates).includes('uploading')} className="w-full max-w-md h-14 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-base rounded-full shadow-btn hover:shadow-soft-lg transition-all flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50">
+          <button onClick={onSubmitRequest} disabled={activeRecordingKey !== null || Object.values(saveStates).some(s => s === 'uploading' || s === 'processing')} className="w-full max-w-md h-14 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-base rounded-full shadow-btn hover:shadow-soft-lg transition-all flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50">
             <Send className="w-5 h-5" />
             <span>Submit Speaking Section</span>
           </button>
