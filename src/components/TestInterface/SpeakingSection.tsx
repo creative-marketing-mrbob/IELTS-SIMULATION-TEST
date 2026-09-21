@@ -405,30 +405,107 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({ onSubmitReques
   };
 
   const renderTaskPrompts = (partId: 1 | 2 | 3) => {
-    const task = speakingTasks.find(item => item.partId === partId);
-    if (!task) return null;
-    if (isQaMode && partId !== 2) return null;
-    const lines = splitPromptLines(task.bulletPoints);
-
-    return (
-      <div className="space-y-2.5">
-        <span className="text-xs font-black uppercase tracking-wider text-slate-500 block">
-          {partId === 2 ? 'Cue Card:' : 'Topic Questions:'}
-        </span>
-        <div className="space-y-2">
-          {lines.map((line, idx) => (
-            <div key={idx} className="flex items-start space-x-3 bg-[#f8fbff] p-4 rounded-2xl border border-[#e6eaf2]">
-              <span className="w-5 h-5 rounded-full bg-red-100 text-red-600 font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                {partId === 2 && idx > 1 ? '•' : idx + 1}
-              </span>
-              <p className="text-xs sm:text-sm font-semibold text-slate-800 leading-relaxed">
-                {line}
-              </p>
+    if (partId === 1) {
+      return (
+        <div className="bg-[#f8fbff] p-5 rounded-2xl border border-[#e6eaf2] space-y-3 mt-3">
+          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block">
+            PERTANYAAN
+          </span>
+          <div className="space-y-2 text-xs sm:text-sm font-semibold text-slate-800">
+            <div className="flex items-start space-x-2.5">
+              <span className="text-slate-400 font-bold">•</span>
+              <p className="leading-relaxed">How many hours do you usually sleep at night?</p>
             </div>
-          ))}
+            <div className="flex items-start space-x-2.5">
+              <span className="text-slate-400 font-bold">•</span>
+              <p className="leading-relaxed">Do you sometimes sleep during the day? (Why/Why not?)</p>
+            </div>
+            <div className="flex items-start space-x-2.5">
+              <span className="text-slate-400 font-bold">•</span>
+              <p className="leading-relaxed">What do you do if you can't get to sleep at night? (Why?)</p>
+            </div>
+            <div className="flex items-start space-x-2.5">
+              <span className="text-slate-400 font-bold">•</span>
+              <p className="leading-relaxed">Do you ever remember the dreams you've had while you were asleep?</p>
+            </div>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+
+    if (partId === 2) {
+      return (
+        <div className="bg-[#f8fbff] p-5 rounded-2xl border border-[#e6eaf2] space-y-3 mt-3">
+          <p className="text-xs sm:text-sm font-bold text-slate-900 leading-relaxed">
+            Describe a time when you met someone who you became good friends with.
+          </p>
+          <div className="space-y-2 pt-1">
+            <p className="text-xs sm:text-sm font-semibold text-slate-700">You should say:</p>
+            <div className="space-y-1.5 pl-2 text-xs sm:text-sm font-medium text-slate-800">
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">Who you met</p>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">When and where you met this person</p>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">What you thought about this person when you first met</p>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">And explain why you think you became good friends with this person.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (partId === 3) {
+      return (
+        <div className="bg-[#f8fbff] p-5 rounded-2xl border border-[#e6eaf2] space-y-4 mt-3">
+          <div className="space-y-2">
+            <p className="text-xs sm:text-sm font-bold text-slate-900">Friends at school:</p>
+            <div className="space-y-1.5 pl-2 text-xs sm:text-sm font-medium text-slate-800">
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">How important is it for children to have lots of friends at school?</p>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">Do you think it is wrong for parents to influence which friends their children have?</p>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">Why do you think children often choose different friends as they get older?</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-3 border-t border-slate-200/60">
+            <p className="text-xs sm:text-sm font-bold text-slate-900">Making new friends:</p>
+            <div className="space-y-1.5 pl-2 text-xs sm:text-sm font-medium text-slate-800">
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">If a person is moving to a new town, what is a good way for them to make friends?</p>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">Can you think of any disadvantages of making new friends online?</p>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="text-slate-400 font-bold">•</span>
+                <p className="leading-relaxed">Would you say it is harder for people to make new friends as they get older?</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
   if (!hasCompletedAudioSetup) {

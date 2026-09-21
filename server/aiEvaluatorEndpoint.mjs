@@ -5,7 +5,7 @@ const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
 const DEFAULT_KIE_MODEL = 'gemini-3-5-flash-openai';
 const KIE_BASE_URL = 'https://api.kie.ai';
 const RUBRIC_VERSION = 'IELTS-Cambridge-Descriptors-2026.1';
-const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-19-official-band6-gates';
+const PROMPT_VERSION = 'ai-evaluator-secure-endpoint-2026-09-21-strict-band5-calibrated';
 
 const officialSpeakingDescriptors = `
 OFFICIAL IELTS SPEAKING BAND DESCRIPTORS (supplied assessment form):
@@ -88,21 +88,57 @@ Making new friends:
 
 const writingPrompt = `
 You are a senior certified Cambridge IELTS Senior Examiner.
-Evaluate the candidate's IELTS Academic Writing Task 1 and Task 2 submissions with strict fidelity to the official IELTS Band Descriptors.
+Evaluate the candidate's IELTS Academic Writing Task 1 and Task 2 submissions with strict fidelity to the official IELTS Band Descriptors (Borang Penilaian Resmi).
 
 ${officialWritingDescriptorRules}
 
-CRITICAL RULES:
-1. NEVER guess or invent an overall band.
-2. For EVERY criterion, assign an INTEGER band score from 1 to 9 (e.g. 4, 5, 6, 7, 8, 9). Do NOT assign decimals like 6.3 or 5.8.
-3. Select the HIGHEST band whose positive characteristics are sufficiently supported by actual candidate response evidence.
-4. If performance sits between descriptors, choose the lower fully supported descriptor.
-   - Do not infer or optimise toward the candidate's target score. The target score is deliberately excluded from this evaluation.
-5. In descriptorReason, write ONE cohesive explanation without Part A/B/C/D labels or separate section headings. In that single explanation, cover why the awarded band fits, what prevents the next band, what keeps it above the lower band, and exact evidence from the response. Use short connected sentences and do NOT write a long winding paragraph.
-6. Provide short, exact quote excerpts in positiveEvidence and limitingEvidence from the candidate text. Do NOT invent sentences the candidate did not write.
-7. If the candidate response is empty or <= 20 words, assign Band 1 or 2 with an underlength warning.
-8. Keep descriptorReason detailed and concise, and feedback practical and constructive.
-9. Write descriptorReason and feedback in natural Indonesian using a friendly teacher-to-student voice and the word "kamu". Explain why the awarded band fits, why it cannot move to the next band, why it is not lower, and cite exact response evidence. Stay warm, direct, professional, and evidence-based; avoid stiff bureaucratic language or exaggerated praise.
+CRITICAL RULES FOR EXAMINER CALIBRATION (STRICT BORANG CONFORMANCE):
+1. NEVER guess, inflate, or invent an overall band.
+2. For EVERY criterion, assign an INTEGER band score from 1 to 9 (e.g. 4, 5, 6, 7, 8, 9). Do NOT assign decimals like 6.5 or 5.5.
+3. BEWARE OF THE "CLEAN SIMPLE ESSAY" TRAP:
+   - AI tools (like ChatGPT) frequently generate essays with 100% correct spelling, zero punctuation mistakes, and clean paragraphs, but using ONLY elementary vocabulary (A2/B1) and basic repetitive sentence structures ("They can...", "This means...", "Subject + verb").
+   - ZERO GRAMMAR/SPELLING ERRORS DOES NOT EQUAL BAND 7 OR 8!
+   - In IELTS Writing, Accuracy is only HALF the criterion; RANGE (variety of complex structures, sophisticated/less-common lexis, idiomatic collocations) is the mandatory requirement for Band 7+.
+   - An essay with 100% grammatical accuracy using only simple and basic compound sentences has RESTRICTED RANGE and MUST be rated BAND 5 (or at most Band 6) in GRA.
+   - An essay with 100% spelling accuracy using only elementary everyday vocabulary without less-common lexis MUST be rated BAND 5 in LR. Band 6 requires attempting less-common lexis; Band 7 requires a sufficient range of less-common lexical items.
+
+4. CRITERIA CEILINGS (MANDATORY HARD LIMITS):
+   - TASK 1 (TASK ACHIEVEMENT - TA):
+     * Band 5: The overview is superficial, weak, or merely states the obvious (e.g. "Overall, the prices of the three metals changed during the year"); OR the body mechanically recounts numbers month-by-month without synthesizing trends or groupings. IF THE OVERVIEW MERELY SAYS "THINGS CHANGED" OR LISTS RAW DATA, CAP TA AT BAND 5.
+     * Band 6: Presents a relevant overview that identifies clear general trends (e.g. overall upward/downward trajectory), but some key features are inadequately selected or details are mechanically listed.
+     * Band 7: Requires a CLEAR, well-formulated overview of main trends/differences AND accurate, well-categorised key features. An essay with a simplistic "prices changed" overview CANNOT RECEIVE BAND 7 (cap at Band 5).
+
+   - TASK 2 (TASK RESPONSE - TR):
+     * Band 5: Position is stated, but development is limited, simplistic, or generic (e.g. 1-2 sentence cliché explanations like "grandparents can teach their grandchildren about life and give them useful advice", "spend money on hospitals and medicines"); main ideas are superficial or repetitive. CAP TR AT BAND 5.
+     * Band 6: Addresses all parts of the prompt with a clear position, but arguments are not fully extended or some points lack depth.
+     * Band 7: Ideas are thoroughly explored, logically extended, and supported with depth and nuance. Generic, superficial explanations CANNOT RECEIVE BAND 7.
+
+   - COHERENCE & COHESION (CC):
+     * Band 5: Heavy reliance on mechanical list markers ("Firstly, Secondly, First, Second, Another problem is, In conclusion") at the start of sentences; repetitive referencing without sophisticated substitution. CAP CC AT BAND 5.
+     * Band 6: Clear overall progression, but cohesion between sentences is mechanical or formulaic.
+     * Band 7: Flexible, natural cohesive devices woven into sentences; subtle referencing and substitution. Mechanical template list connectors CANNOT RECEIVE BAND 7.
+
+   - LEXICAL RESOURCE (LR):
+     * Band 5: Uses only everyday, basic vocabulary (A2/B1 level: "give benefits", "more experience", "lived for many years", "spend money", "health problems", "prices changed", "biggest change"). Little variation, repetitive phrasing, and ZERO attempt at less-common academic lexis or sophisticated collocations. EVEN IF 100% ERROR-FREE IN SPELLING, THIS IS STRICTLY BAND 5.
+     * Band 6: Demonstrates an adequate range of topic-specific vocabulary and ATTEMPTS less-common words/collocations, even if slightly awkward. Note: If no less-common words are attempted, it cannot exceed Band 5!
+     * Band 7: Uses a sufficient range with flexibility, precision, and natural less-common lexical items and collocations. Error-free basic English CANNOT RECEIVE BAND 7.
+
+   - GRAMMATICAL RANGE & ACCURACY (GRA):
+     * Band 5: Relies heavily on simple sentence forms and repetitive basic patterns (e.g., repeated "They can + verb", "This means...", "Subject + modal + verb", "X was Y% while A was B%"). Complex sentences are rare, basic (just "because" or "and"), or absent. High accuracy in basic sentences DOES NOT raise this above Band 5.
+     * Band 6: Mix of simple and complex forms (e.g. some subordinate clauses), but limited flexibility or variety.
+     * Band 7: VARIETY of complex structures (passive voice, non-defining relative clauses, participle clauses, conditionals, inversion) used flexibly. An essay consisting mostly of simple Subject-Verb frames with 1 or 2 basic "because/if" clauses CANNOT RECEIVE BAND 7.
+
+5. BENCHMARK CALIBRATION FOR BAND 5 AI ESSAYS:
+   When candidate text shows:
+   - Task 1: "Overall, the prices of the three metals changed during the year. Nickel had the biggest change... In January nickel was 6%... In June it decreased to -3%... In December zinc was 2%..."
+   - Task 2: "On the one hand, elderly people can give some benefits... Firstly, they have more experience... For example, grandparents can teach their grandchildren... On the other hand, an ageing population can create several problems... First, elderly people need more healthcare... Second, the government needs to provide pensions... Another problem is fewer young people... In conclusion..."
+   -> THIS ESSAY DEMONSTRATES TEXTBOOK BAND 5.0 (TA/TR: 5, CC: 5, LR: 5, GRA: 5, overall band: 5.0).
+   Evaluate it strictly as Band 5.0. Do NOT inflate scores to Band 6, 7, or 8!
+6. If performance sits between descriptors, choose the LOWER fully supported descriptor. Never let neat formatting or candidate effort inflate a band.
+7. In descriptorReason, write ONE cohesive explanation without Part A/B/C/D labels or separate section headings. In that single explanation, cover why the awarded band fits, what prevents the next higher band, what keeps it above the lower band, and cite exact evidence from the response.
+8. Provide short, exact quote excerpts in positiveEvidence and limitingEvidence from the candidate text. Do NOT invent words the candidate did not write.
+9. If the candidate response is empty or <= 20 words, assign Band 1 or 2 with an underlength warning.
+10. Write descriptorReason and feedback in natural Indonesian using a friendly teacher-to-student voice and the word "kamu". Explain why the awarded band fits, why it cannot move to the next band, why it is not lower, and cite exact response evidence based strictly on the official borang. Stay warm, direct, professional, and evidence-based.
 
 Return JSON only with task1.taskAchievement, task1.coherenceCohesion, task1.lexicalResource, task1.grammaticalRangeAccuracy, task2.taskResponse, task2.coherenceCohesion, task2.lexicalResource, task2.grammaticalRangeAccuracy. Each criterion must include band, positiveEvidence, limitingEvidence, descriptorReason, feedback, confidence.
 `;
@@ -523,10 +559,12 @@ function speakingAudioSpecs(answers = {}) {
 }
 
 async function loadCompleteSpeakingAudio(answers, isKie) {
-  const specs = speakingAudioSpecs(answers);
-  const missing = specs.filter(item => !item.audio).map(item => item.label);
-  if (missing.length) {
-    throw new Error(`AI Speaking evaluation dibatalkan karena rekaman belum lengkap: ${missing.join(', ')}.`);
+  const allSpecs = speakingAudioSpecs(answers);
+  const specs = allSpecs.filter(item => Boolean(item.audio));
+  const missing = allSpecs.filter(item => !item.audio).map(item => item.label);
+
+  if (!specs.length) {
+    throw new Error('AI Speaking evaluation dibatalkan: Belum ada rekaman suara yang tersimpan untuk dinilai.');
   }
 
   const loaded = await Promise.all(specs.map(async item => {
@@ -543,7 +581,8 @@ async function loadCompleteSpeakingAudio(answers, isKie) {
   }
   return {
     specs: loaded.map(({ id, label, transcriptKey }) => ({ id, label, transcriptKey })),
-    audioParts: loaded.flatMap(item => item.parts)
+    audioParts: loaded.flatMap(item => item.parts),
+    missingLabels: missing
   };
 }
 
@@ -728,12 +767,15 @@ function formatSpeakingAudioAnalysis(answers, id) {
   ].join('\n');
 }
 
-function buildSpeakingPrompt(user, answers, hasAudio) {
+function buildSpeakingPrompt(user, answers, hasAudio, missingLabels = []) {
   const p1Dur = Number(answers.part1Duration || 0);
   const p2Dur = Number(answers.part2Duration || 0);
   const p3Dur = Number(answers.part3Duration || 0);
   const partsRecordedCount = (p1Dur > 0 ? 1 : 0) + (p2Dur > 0 ? 1 : 0) + (p3Dur > 0 ? 1 : 0);
-  const multiPartNote = partsRecordedCount >= 2
+  const missingNote = missingLabels?.length
+    ? `\nPARTIAL COMPLETION NOTE: The candidate submitted audio recordings for only some parts. Missing/unrecorded parts: ${missingLabels.join(', ')}. In accordance with official IELTS Speaking Descriptors, evaluate the candidate based on the language produced in the supplied recordings, but appropriately penalize Fluency, Lexical Resource, and Grammatical Range for unrecorded/incomplete tasks (inability to sustain long turns or extended discussion restricts overall band).\n`
+    : '';
+  const multiPartNote = partsRecordedCount >= 2 && !missingLabels?.length
     ? `\nNOTE ON CANDIDATE COMPLETION: Candidate recorded spoken answers for multiple sections (Part 1: ${p1Dur}s, Part 2: ${p2Dur}s, Part 3: ${p3Dur}s). Do NOT claim or penalize candidate as having skipped or left parts empty when recorded duration is present. Evaluate overall English proficiency based on speech samples.\n`
     : '';
 
@@ -757,7 +799,7 @@ ${formatSpeakingAudioAnalysis(answers, key)}
 Candidate ID: ${user.candidateId}
 Result ID: ${user.resultId}
 Candidate Name: ${user.fullName}
-Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}
+Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}${missingNote}
 The transcripts and phonological observations below were produced in a separate audio-only pass. Treat transcripts as the only permitted source for FC/LR/GRA quotations and the verified observations as the source for Pronunciation.
 
 ${qaBlocks}`;
@@ -768,7 +810,7 @@ ${qaBlocks}`;
 Candidate ID: ${user.candidateId}
 Result ID: ${user.resultId}
 Candidate Name: ${user.fullName}
-Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}
+Audio Evidence Supplied To Model: ${hasAudio ? 'YES' : 'NO'}${multiPartNote}${missingNote}
 The transcripts and phonological observations below were produced in a separate audio-only pass. Treat transcripts as the only permitted source for FC/LR/GRA quotations and the verified observations as the source for Pronunciation.
 
 === SPEAKING PART 1 ===
@@ -1356,13 +1398,13 @@ export async function evaluateCandidateSection(section, user, answers, forceKie 
 
   const isKie = shouldUseKie(forceKie);
 
-  const { specs, audioParts } = await loadCompleteSpeakingAudio(answers, isKie);
+  const { specs, audioParts, missingLabels } = await loadCompleteSpeakingAudio(answers, isKie);
   const hasAudio = true;
   const transcriptionPrompt = buildSpeakingTranscriptionPrompt(specs);
   const { parsed: transcription } = await callEvaluatorModel([{ text: transcriptionPrompt }, ...audioParts], forceKie);
   const verifiedTranscripts = validateVerifiedTranscripts(transcription, specs);
   const verifiedAnswers = answersWithVerifiedTranscripts(answers, specs, verifiedTranscripts);
-  const prompt = buildSpeakingPrompt(user, verifiedAnswers, hasAudio);
+  const prompt = buildSpeakingPrompt(user, verifiedAnswers, hasAudio, missingLabels);
   const { parsed, modelName, provider } = await callEvaluatorModel([{ text: prompt }], forceKie);
   return validateSpeaking(user, verifiedAnswers, parsed, hash, modelName, provider, hasAudio, verifiedTranscripts);
 }
