@@ -620,9 +620,9 @@ function buildInitialEvaluation(candidate, answers, progress) {
     manualChecks: {
       reading: { checks: manualChecksReading, autoScore: 0, tutorScore: 0, matchCount: 0, matchPercentage: 0 },
       listening: { checks: manualChecksListening, autoScore: 0, tutorScore: 0, matchCount: 0, matchPercentage: 0 },
-      writing: { task1: { ta: 6, cc: 6, lr: 6, gra: 6 }, task2: { tr: 6, cc: 6, lr: 6, gra: 6 } },
-      speaking: { fc: 6, lr: 6, gra: 6, pro: 6 },
-      tutorOverallBand: 6,
+      writing: { task1: { ta: 0, cc: 0, lr: 0, gra: 0 }, task2: { tr: 0, cc: 0, lr: 0, gra: 0 } },
+      speaking: { fc: 0, lr: 0, gra: 0, pro: 0 },
+      tutorOverallBand: undefined,
       evaluatorName: 'IELTS Tutor',
       checkedAt: new Date().toISOString(),
       isApproved: false

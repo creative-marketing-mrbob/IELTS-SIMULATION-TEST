@@ -79,11 +79,13 @@ function bandText(value: number | string | undefined) {
 }
 
 function tutorBandValue(candidate: TestEvaluation, section: 'writing' | 'speaking') {
+  if (!candidate.manualChecks?.isApproved) return '-';
   const value = candidate.manualChecks?.[section]?.tutorBand;
   return typeof value === 'number' ? value.toFixed(1) : '-';
 }
 
 function tutorOverallValue(candidate: TestEvaluation) {
+  if (!candidate.manualChecks?.isApproved) return '-';
   const value = candidate.manualChecks?.tutorOverallBand;
   return typeof value === 'number' ? value.toFixed(1) : '-';
 }

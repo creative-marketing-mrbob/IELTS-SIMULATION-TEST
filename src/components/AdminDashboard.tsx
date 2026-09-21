@@ -104,9 +104,11 @@ function displayAdminBand(value: unknown) {
 }
 
 function candidateBandSummary(candidate: TestEvaluation) {
-  const manualOverall = candidate.manualChecks?.tutorOverallBand;
+  const isTutorApproved = Boolean(candidate.manualChecks?.isApproved);
+  const manualOverall = isTutorApproved ? candidate.manualChecks?.tutorOverallBand : undefined;
   const overall = typeof manualOverall === 'number' ? manualOverall : candidate.overallBand;
-  return displayAdminBand(overall);
+  if (typeof overall === 'number' && overall >= 1) return overall.toFixed(1);
+  return '-';
 }
 
 function displayAdminStatus(status: string) {
@@ -116,10 +118,11 @@ function displayAdminStatus(status: string) {
 }
 
 function buildAdminFollowUpMessage(candidate: TestEvaluation) {
-  const reading = displayAdminBand(candidate.manualChecks?.reading?.tutorBand ?? candidate.reading.band);
-  const listening = displayAdminBand(candidate.manualChecks?.listening?.tutorBand ?? candidate.listening.band);
-  const writing = displayAdminBand(candidate.manualChecks?.writing?.tutorBand ?? candidate.dualComparison?.aiAssessment?.writingBand ?? candidate.writing.band);
-  const speaking = displayAdminBand(candidate.manualChecks?.speaking?.tutorBand ?? candidate.dualComparison?.aiAssessment?.speakingBand ?? candidate.speaking.band);
+  const isApproved = Boolean(candidate.manualChecks?.isApproved);
+  const reading = displayAdminBand(isApproved ? candidate.manualChecks?.reading?.tutorBand : candidate.reading.band);
+  const listening = displayAdminBand(isApproved ? candidate.manualChecks?.listening?.tutorBand : candidate.listening.band);
+  const writing = displayAdminBand(isApproved ? candidate.manualChecks?.writing?.tutorBand : (candidate.dualComparison?.aiAssessment?.writingBand ?? candidate.writing.band));
+  const speaking = displayAdminBand(isApproved ? candidate.manualChecks?.speaking?.tutorBand : (candidate.dualComparison?.aiAssessment?.speakingBand ?? candidate.speaking.band));
   const overall = candidateBandSummary(candidate);
 
   return `Hi ${candidate.user.fullName}, berikut ringkasan hasil IELTS Diagnostic kamu:
