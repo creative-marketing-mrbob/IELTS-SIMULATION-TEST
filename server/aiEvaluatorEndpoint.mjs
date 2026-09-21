@@ -341,8 +341,8 @@ function wordCount(text) {
 
 function parseWholeBand(value, label) {
   const numeric = typeof value === 'number' ? value : Number(value);
-  if (!Number.isInteger(numeric) || numeric < 1 || numeric > 9) {
-    throw new Error(`${label} must be an integer band from 1 to 9.`);
+  if (!Number.isInteger(numeric) || numeric < 0 || numeric > 9) {
+    throw new Error(`${label} must be an integer band from 0 to 9.`);
   }
   return numeric;
 }
@@ -1391,6 +1391,11 @@ export async function evaluateCandidateSection(section, user, answers, forceKie 
   const hash = aiInputHash(section, user, answers);
 
   if (section === 'writing') {
+    const words1 = wordCount(answers.task1);
+    const words2 = wordCount(answers.task2);
+    if (words1 === 0 && words2 === 0) {
+      throw new Error('AI Writing evaluation dibatalkan: Belum ada jawaban tulisan yang tersimpan untuk dinilai.');
+    }
     const prompt = buildWritingPrompt(user, answers);
     const { parsed, modelName, provider } = await callEvaluatorModel([{ text: prompt }], forceKie);
     return validateWriting(user, answers, parsed, hash, modelName, provider);
