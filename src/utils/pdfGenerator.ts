@@ -469,40 +469,14 @@ export async function downloadComprehensivePDF(evalData: TestEvaluation) {
 
   doc.setTextColor(7, 23, 54);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(24);
-  doc.text('IELTS', 41, 20);
+  doc.setFontSize(34);
+  doc.text('IELTS', 41, 23);
   doc.setFontSize(15);
-  doc.text('SIMULATION TEST', 41, 29);
-  doc.setFontSize(8.5);
-  doc.setTextColor(70, 80, 96);
-  doc.text('Test Report Form', 41, 34);
-
-  doc.setFillColor(247, 249, 252);
-  doc.rect(139, 13, 59, 11, 'FD');
-  doc.setTextColor(7, 23, 54);
-  doc.setFontSize(9);
-  doc.text('ACADEMIC SIMULATION', 168.5, 20.2, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.8);
-  doc.setTextColor(85, 94, 109);
-  doc.text('Issued by Mr.BOB Kampung Inggris', 168.5, 29, { align: 'center' });
+  doc.text('SIMULATION TEST', 41, 33);
 
   doc.setDrawColor(224, 53, 63);
   doc.setLineWidth(1.3);
   doc.line(margin, 39, pageWidth - margin, 39);
-
-  doc.setFillColor(255, 248, 248);
-  doc.setDrawColor(244, 182, 186);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(margin, 43, contentWidth, 14, 1.5, 1.5, 'FD');
-  doc.setTextColor(122, 32, 38);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.4);
-  doc.text('IMPORTANT', margin + 4, 48.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(75, 74, 82);
-  const disclaimer = 'This report records an IELTS simulation conducted by Mr.BOB Kampung Inggris. It is intended for learning and diagnostic purposes and is not an official IELTS Test Report Form or language certificate.';
-  doc.text(doc.splitTextToSize(disclaimer, 155), margin + 24, 48.5);
 
   const field = (label: string, value: string, x: number, y: number, width: number) => {
     doc.setFont('helvetica', 'bold');
@@ -520,40 +494,29 @@ export async function downloadComprehensivePDF(evalData: TestEvaluation) {
     doc.text(fitted, x + 2.5, y + 6.5);
   };
 
-  field('Centre ID', 'MRBOB-KI', margin, 64, 36);
-  field('Test Date', dateLabel, 53, 64, 47);
-  field('Candidate Number', evalData.resultId, 105, 64, 93);
+  field('Centre ID', 'MRBOB-KI', margin, 48, 36);
+  field('Test Date', dateLabel, 53, 48, 47);
+  field('Candidate Number', evalData.resultId, 105, 48, 93);
 
   doc.setTextColor(7, 23, 54);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10.5);
-  doc.text('Candidate Details', margin, 84);
+  doc.text('Candidate Details', margin, 68);
   doc.setLineWidth(0.35);
   doc.setDrawColor(20, 28, 45);
-  doc.line(margin, 87, pageWidth - margin, 87);
+  doc.line(margin, 71, pageWidth - margin, 71);
 
-  field('Full Name', evalData.user.fullName, margin, 93, 116);
-  field('Candidate ID', evalData.user.candidateId || evalData.resultId, margin, 109, 116);
-  field('Age', String(evalData.user.age ?? '-'), margin, 125, 35);
-  field('Current Status', evalData.user.currentStatus || '-', 52, 125, 76);
-  field('WhatsApp', evalData.user.whatsapp || '-', margin, 141, 116);
-  field('Target Band', evalData.user.targetScore || '-', 133, 125, 65);
-  field('Report Status', evalData.status || '-', 133, 141, 65);
-
-  doc.setFillColor(249, 250, 252);
-  doc.setDrawColor(147, 156, 171);
-  doc.rect(133, 93, 65, 26, 'FD');
-  if (logoData) doc.addImage(logoData, 'PNG', 156.5, 95, 18, 18, undefined, 'FAST');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.setTextColor(92, 101, 116);
-  doc.text('MR.BOB KAMPUNG INGGRIS', 165.5, 116.5, { align: 'center' });
+  field('Full Name', evalData.user.fullName, margin, 77, contentWidth);
+  field('Candidate ID', evalData.user.candidateId || evalData.resultId, margin, 93, contentWidth);
+  field('Age', String(evalData.user.age ?? '-'), margin, 109, 30);
+  field('Current Status', evalData.user.currentStatus || '-', 47, 109, 90);
+  field('WhatsApp', evalData.user.whatsapp || '-', 142, 109, 56);
 
   doc.setTextColor(7, 23, 54);
   doc.setFontSize(10.5);
-  doc.text('Test Results', margin, 162);
+  doc.text('Test Results', margin, 132);
   doc.setDrawColor(20, 28, 45);
-  doc.line(margin, 165, pageWidth - margin, 165);
+  doc.line(margin, 135, pageWidth - margin, 135);
 
   const scoreItems = [
     ['Listening', printableBand(listeningBand)],
@@ -570,23 +533,23 @@ export async function downloadComprehensivePDF(evalData: TestEvaluation) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.2);
     doc.setTextColor(20, 28, 45);
-    doc.text(label, x + scoreWidth / 2, 172, { align: 'center' });
+    doc.text(label, x + scoreWidth / 2, 142, { align: 'center' });
     doc.setFillColor(index === 4 ? 7 : 239, index === 4 ? 37 : 242, index === 4 ? 92 : 246);
     doc.setDrawColor(90, 100, 116);
-    doc.rect(x, 175, scoreWidth, 17, 'FD');
+    doc.rect(x, 145, scoreWidth, 17, 'FD');
     doc.setTextColor(index === 4 ? 255 : 20, index === 4 ? 255 : 28, index === 4 ? 255 : 45);
     doc.setFontSize(12);
-    doc.text(score, x + scoreWidth / 2, 186, { align: 'center' });
+    doc.text(score, x + scoreWidth / 2, 156, { align: 'center' });
   });
 
   doc.setTextColor(7, 23, 54);
   doc.setFontSize(10.5);
-  doc.text('Academic Team Comments', margin, 203);
+  doc.text('Academic Team Comments', margin, 174);
   doc.setDrawColor(20, 28, 45);
-  doc.line(margin, 206, pageWidth - margin, 206);
+  doc.line(margin, 177, pageWidth - margin, 177);
   doc.setFillColor(250, 251, 253);
   doc.setDrawColor(147, 156, 171);
-  doc.rect(margin, 211, 119, 38, 'FD');
+  doc.rect(margin, 182, 119, 48, 'FD');
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(60, 70, 86);
@@ -598,34 +561,27 @@ export async function downloadComprehensivePDF(evalData: TestEvaluation) {
   const comment = recommendations.length
     ? recommendations.map((item, index) => `${index + 1}. ${item}`).join('\n')
     : `Keep practising all four skills consistently. Use Result ID ${evalData.resultId} when discussing this report with the Mr.BOB academic team.`;
-  doc.text(doc.splitTextToSize(comment, 111).slice(0, 7), margin + 4, 217);
+  doc.text(doc.splitTextToSize(comment, 111).slice(0, 9), margin + 4, 188);
 
   doc.setFillColor(250, 251, 253);
-  doc.rect(136, 211, 62, 38, 'FD');
-  if (logoData) doc.addImage(logoData, 'PNG', 156, 214, 22, 21, undefined, 'FAST');
+  doc.rect(136, 182, 62, 48, 'FD');
+  if (logoData) doc.addImage(logoData, 'PNG', 155, 187, 24, 24, undefined, 'FAST');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.2);
   doc.setTextColor(20, 28, 45);
-  doc.text('MR.BOB ACADEMIC TEAM', 167, 239, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(92, 101, 116);
-  doc.text('Verified Simulation Result', 167, 244, { align: 'center' });
+  doc.text('MR.BOB ACADEMIC TEAM', 167, 220, { align: 'center' });
 
-  field('Date Issued', dateLabel, margin, 258, 48);
-  field('Test Report Form Number', evalData.resultId, 65, 258, 91);
-  field('Module', 'ACADEMIC', 161, 258, 37);
+  field('Date Issued', dateLabel, margin, 242, 48);
+  field('Report Number', evalData.resultId, 65, 242, 91);
+  field('Module', 'ACADEMIC', 161, 242, 37);
 
   doc.setFillColor(7, 23, 54);
-  doc.rect(0, 279, pageWidth, 18, 'F');
+  doc.rect(0, 273, pageWidth, 24, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.2);
-  doc.text('Mr.BOB Kampung Inggris - IELTS Simulation Test', margin, 286);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.3);
-  doc.text('Diagnostic learning report - not an official IELTS certificate', margin, 291);
-  doc.text(`Result ID: ${evalData.resultId}`, pageWidth - margin, 288.5, { align: 'right' });
+  doc.text('Mr.BOB Kampung Inggris - IELTS Simulation Test', margin, 285);
+  doc.text(`Result ID: ${evalData.resultId}`, pageWidth - margin, 285, { align: 'right' });
 
   doc.save(`IELTS_Simulation_Test_Report_${evalData.resultId}.pdf`);
 }
