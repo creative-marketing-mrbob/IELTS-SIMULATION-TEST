@@ -478,6 +478,24 @@ export async function downloadComprehensivePDF(evalData: TestEvaluation) {
   doc.setLineWidth(1.3);
   doc.line(margin, 39, pageWidth - margin, 39);
 
+  const fitSingleLineText = (value: string, maxWidth: number, preferredSize: number, minimumSize = 6) => {
+    const text = value || '-';
+    let fontSize = preferredSize;
+    doc.setFontSize(fontSize);
+    while (fontSize > minimumSize && doc.getTextWidth(text) > maxWidth) {
+      fontSize = Math.max(minimumSize, fontSize - 0.25);
+      doc.setFontSize(fontSize);
+    }
+
+    if (doc.getTextWidth(text) <= maxWidth) return { text, fontSize };
+
+    let shortened = text;
+    while (shortened.length > 1 && doc.getTextWidth(`${shortened}...`) > maxWidth) {
+      shortened = shortened.slice(0, -1);
+    }
+    return { text: `${shortened}...`, fontSize };
+  };
+
   const field = (label: string, value: string, x: number, y: number, width: number) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.7);
@@ -488,10 +506,10 @@ export async function downloadComprehensivePDF(evalData: TestEvaluation) {
     doc.setLineWidth(0.25);
     doc.rect(x, y, width, 10, 'FD');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
     doc.setTextColor(20, 28, 45);
-    const fitted = doc.splitTextToSize(value || '-', width - 5)[0] || '-';
-    doc.text(fitted, x + 2.5, y + 6.5);
+    const fitted = fitSingleLineText(value || '-', width - 5, 8.5);
+    doc.setFontSize(fitted.fontSize);
+    doc.text(fitted.text, x + 2.5, y + 6.5);
   };
 
   field('Centre ID', 'MRBOB-KI', margin, 48, 36);
@@ -538,8 +556,9 @@ export async function downloadComprehensivePDF(evalData: TestEvaluation) {
     doc.setDrawColor(90, 100, 116);
     doc.rect(x, 145, scoreWidth, 17, 'FD');
     doc.setTextColor(index === 4 ? 255 : 20, index === 4 ? 255 : 28, index === 4 ? 255 : 45);
-    doc.setFontSize(12);
-    doc.text(score, x + scoreWidth / 2, 156, { align: 'center' });
+    const fittedScore = fitSingleLineText(score, scoreWidth - 4, 12, 6.5);
+    doc.setFontSize(fittedScore.fontSize);
+    doc.text(fittedScore.text, x + scoreWidth / 2, 156, { align: 'center' });
   });
 
   doc.setTextColor(7, 23, 54);
@@ -579,9 +598,8 @@ export async function downloadComprehensivePDF(evalData: TestEvaluation) {
   doc.rect(0, 273, pageWidth, 24, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.2);
-  doc.text('Mr.BOB Kampung Inggris - IELTS Simulation Test', margin, 285);
-  doc.text(`Result ID: ${evalData.resultId}`, pageWidth - margin, 285, { align: 'right' });
+  doc.setFontSize(8);
+  doc.text('mrbobacademia.com | 0821-3195-3578', pageWidth / 2, 285, { align: 'center' });
 
   doc.save(`IELTS_Simulation_Test_Report_${evalData.resultId}.pdf`);
 }
