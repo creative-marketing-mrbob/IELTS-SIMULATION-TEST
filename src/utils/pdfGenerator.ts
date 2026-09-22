@@ -55,108 +55,115 @@ export function estimatedCefr(value: string | number) {
   return 'A1';
 }
 
-function renderPDFHeader(doc: jsPDF, sectionTitle: string, subtitle: string, evaluation: TestEvaluation) {
-  // Match the certificate's white, navy, red, and neutral-grey visual system.
+function renderPDFHeader(
+  doc: jsPDF,
+  sectionTitle: string,
+  subtitle: string,
+  evaluation: TestEvaluation,
+  logoData: string | null
+) {
+  const margin = 12;
+
   doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, 210, 24, 'F');
+  doc.rect(0, 0, 210, 297, 'F');
+
+  if (logoData) {
+    doc.addImage(logoData, 'PNG', margin, 10, 24, 24, undefined, 'FAST');
+  } else {
+    doc.setFillColor(239, 29, 39);
+    doc.roundedRect(margin, 10, 24, 24, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('Mr.BOB', margin + 12, 23, { align: 'center' });
+  }
 
   doc.setTextColor(7, 23, 54);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(19);
-  doc.text('IELTS', 14, 11.5);
+  doc.setFontSize(34);
+  doc.text('IELTS', 41, 23);
+  doc.setFontSize(15);
+  doc.text('SIMULATION TEST', 41, 33);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text('SIMULATION TEST', 14, 18);
+  doc.setDrawColor(224, 53, 63);
+  doc.setLineWidth(1.3);
+  doc.line(margin, 39, 198, 39);
 
-  doc.setTextColor(20, 28, 45);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text(`ID: ${evaluation.resultId}`, 196, 11, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(new Date(evaluation.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), 196, 17, { align: 'right' });
-
-  doc.setFillColor(224, 53, 63);
-  doc.rect(0, 24, 210, 1.3, 'F');
-
-  // Section Title
   doc.setTextColor(7, 23, 54);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  doc.text(sectionTitle.toUpperCase(), 14, 34);
+  doc.text(sectionTitle.toUpperCase(), 14, 49);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(101, 112, 132);
-  doc.text(subtitle, 14, 40);
+  doc.text(subtitle, 14, 55);
 
-  // Candidate Information Card
-  doc.setFillColor(249, 250, 252);
-  doc.setDrawColor(147, 156, 171);
-  doc.setLineWidth(0.25);
-  doc.roundedRect(14, 45, 182, 24, 2, 2, 'FD');
+  const identityField = (label: string, value: string, x: number, y: number, width: number) => {
+    doc.setFillColor(249, 250, 252);
+    doc.setDrawColor(147, 156, 171);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(x, y, width, 14, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(83, 91, 107);
+    doc.text(label.toUpperCase(), x + 3, y + 4.5);
+    doc.setFontSize(8.5);
+    doc.setTextColor(20, 28, 45);
+    let fontSize = 8.5;
+    doc.setFontSize(fontSize);
+    while (fontSize > 6 && doc.getTextWidth(value || '-') > width - 6) {
+      fontSize -= 0.25;
+      doc.setFontSize(fontSize);
+    }
+    doc.text(value || '-', x + 3, y + 10.5);
+  };
 
-  doc.setTextColor(51, 65, 85);
-  doc.setFontSize(8.5);
+  identityField('Full Name', evaluation.user.fullName, 14, 62, 77);
+  identityField('WhatsApp', evaluation.user.whatsapp, 94, 62, 53);
+  identityField('Current Status', evaluation.user.currentStatus || '-', 14, 78, 96);
+  identityField('Age', String(evaluation.user.age ?? '-'), 113, 78, 34);
 
-  // Left column in card
+  doc.setFillColor(7, 23, 54);
+  doc.setDrawColor(7, 23, 54);
+  doc.roundedRect(151, 62, 45, 30, 1.5, 1.5, 'FD');
+  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text("Candidate Name:", 20, 52);
-  doc.text("WhatsApp Number:", 20, 58);
-  doc.text("Target Band Score:", 20, 64);
-
-  doc.setFont('helvetica', 'normal');
-  doc.text(evaluation.user.fullName, 55, 52);
-  doc.text(evaluation.user.whatsapp, 55, 58);
-  doc.text(evaluation.user.targetScore, 55, 64);
-
-  // Right column in card
-  doc.setFont('helvetica', 'bold');
-  doc.text("Current Status:", 118, 52);
-  doc.text("Age:", 118, 58);
-  doc.text("Diagnostic Status:", 118, 64);
-
-  doc.setFont('helvetica', 'normal');
-  doc.text(evaluation.user.currentStatus, 150, 52);
-  doc.text(String(evaluation.user.age), 150, 58);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(224, 53, 63);
-  doc.text(evaluation.status, 150, 64);
+  doc.setFontSize(7.5);
+  doc.text('OVERALL BAND', 173.5, 70, { align: 'center' });
+  doc.setFontSize(21);
+  doc.text(printableBand(reportOverallBand(evaluation)), 173.5, 84.5, { align: 'center' });
 }
 
 function renderScoreBandBox(doc: jsPDF, startY: number, bandValue: string | number, subLabel: string, rawScoreInfo?: string) {
   doc.setFillColor(249, 250, 252);
   doc.setDrawColor(147, 156, 171);
   doc.setLineWidth(0.25);
-  doc.roundedRect(14, startY, 182, 26, 2, 2, 'FD');
+  doc.roundedRect(14, startY, 182, 20, 2, 2, 'FD');
 
   doc.setTextColor(7, 23, 54);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
-  doc.text(subLabel.toUpperCase(), 22, startY + 9);
+  doc.text(subLabel.toUpperCase(), 22, startY + 8);
 
   doc.setFontSize(18);
   doc.setTextColor(7, 23, 54);
   const displayBand = typeof bandValue === 'number' ? bandValue.toFixed(1) : String(bandValue);
-  doc.text(displayBand, 22, startY + 21);
+  doc.text(displayBand, 187, startY + 13.5, { align: 'right' });
 
   if (rawScoreInfo) {
     doc.setFont('helvetica', 'normal');
-    let infoFontSize = 9;
+    let infoFontSize = 8.5;
     doc.setFontSize(infoFontSize);
-    while (infoFontSize > 6.5 && doc.getTextWidth(rawScoreInfo) > 102) {
+    while (infoFontSize > 6.5 && doc.getTextWidth(rawScoreInfo) > 88) {
       infoFontSize -= 0.25;
       doc.setFontSize(infoFontSize);
     }
     doc.setTextColor(71, 85, 105);
-    doc.text(rawScoreInfo, 90, startY + 12);
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text("Hubungi mentor Mr.BOB di WhatsApp untuk sesi bedah jawaban", 90, startY + 19);
+    doc.text(rawScoreInfo, 96, startY + 11.5, { align: 'center' });
   }
 
-  return startY + 30;
+  return startY + 24;
 }
 
 function renderPDFFooter(doc: jsPDF) {
@@ -170,13 +177,14 @@ function renderPDFFooter(doc: jsPDF) {
 }
 
 // 1. READING REPORT PDF
-export function downloadReadingPDF(evalData: TestEvaluation) {
+export async function downloadReadingPDF(evalData: TestEvaluation) {
   const doc = new jsPDF();
-  renderPDFHeader(doc, "IELTS Reading Diagnostic Report", "Cambridge 17 Academic Reading Test 4 Evaluation", evalData);
+  const logoData = await loadMrBobLogoData();
+  renderPDFHeader(doc, "IELTS Reading Diagnostic Report", "Cambridge 17 Academic Reading Test 4 Evaluation", evalData, logoData);
 
   const tableStartY = renderScoreBandBox(
     doc,
-    73,
+    98,
     evalData.reading.band,
     "Estimated Reading Band",
     `Raw Score: ${evalData.reading.rawScore || 0} / ${evalData.reading.totalQuestions || 12} Benar (${evalData.reading.correctPercentage || 0}%)`
@@ -237,13 +245,14 @@ export function downloadReadingPDF(evalData: TestEvaluation) {
 }
 
 // 2. LISTENING REPORT PDF
-export function downloadListeningPDF(evalData: TestEvaluation) {
+export async function downloadListeningPDF(evalData: TestEvaluation) {
   const doc = new jsPDF();
-  renderPDFHeader(doc, "IELTS Listening Diagnostic Report", "Cambridge 18 Listening Test 4 Audio Evaluation", evalData);
+  const logoData = await loadMrBobLogoData();
+  renderPDFHeader(doc, "IELTS Listening Diagnostic Report", "Cambridge 18 Listening Test 4 Audio Evaluation", evalData, logoData);
 
   const tableStartY = renderScoreBandBox(
     doc,
-    73,
+    98,
     evalData.listening.band,
     "Estimated Listening Band",
     `Raw Score: ${evalData.listening.rawScore || 0} / ${evalData.listening.totalQuestions || 7} Benar (${evalData.listening.correctPercentage || 0}%)`
@@ -303,14 +312,15 @@ export function downloadListeningPDF(evalData: TestEvaluation) {
 }
 
 // 3. WRITING REPORT PDF (Detailed Rubric Breakdown for Task 1 & 2)
-export function downloadWritingPDF(evalData: TestEvaluation) {
+export async function downloadWritingPDF(evalData: TestEvaluation) {
   const doc = new jsPDF();
-  renderPDFHeader(doc, "IELTS Writing Diagnostic Report", "Cambridge 18 Academic Writing Test 4 Assessment", evalData);
+  const logoData = await loadMrBobLogoData();
+  renderPDFHeader(doc, "IELTS Writing Diagnostic Report", "Cambridge 18 Academic Writing Test 4 Assessment", evalData, logoData);
 
   const wDetail = evalData.writing.writingDetail;
   const tableStartY = renderScoreBandBox(
     doc,
-    73,
+    98,
     evalData.writing.band,
     "Estimated Writing Band",
     `Total Kata: ${evalData.writing.wordCount || 0} kata (Task 1: ${wDetail?.wordCountTask1 || 0} w, Task 2: ${wDetail?.wordCountTask2 || 0} w)`
@@ -372,17 +382,17 @@ export function downloadWritingPDF(evalData: TestEvaluation) {
 }
 
 // 4. SPEAKING REPORT PDF (Detailed 4-Criteria Breakdown)
-export function downloadSpeakingPDF(evalData: TestEvaluation) {
+export async function downloadSpeakingPDF(evalData: TestEvaluation) {
   const doc = new jsPDF();
-  renderPDFHeader(doc, "IELTS Speaking Diagnostic Report", "Cambridge 18 Speaking Practice Test 4 Rubric Evaluation", evalData);
+  const logoData = await loadMrBobLogoData();
+  renderPDFHeader(doc, "IELTS Speaking Diagnostic Report", "Cambridge 18 Speaking Practice Test 4 Rubric Evaluation", evalData, logoData);
 
   const spDetail = evalData.speaking.speakingDetail;
   const tableStartY = renderScoreBandBox(
     doc,
-    73,
+    98,
     evalData.speaking.band,
-    "Estimated Speaking Band",
-    "Evaluasi Menyeluruh: Part 1 Sleep, Part 2 Friend Cue Card, Part 3 Discussion"
+    "Estimated Speaking Band"
   );
 
   autoTable(doc, {
