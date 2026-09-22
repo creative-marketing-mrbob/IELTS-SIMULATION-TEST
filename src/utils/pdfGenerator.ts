@@ -40,13 +40,13 @@ function reportOverallBand(evalData: TestEvaluation) {
   return evalData.overallBand;
 }
 
-function estimatedCefr(value: string | number) {
+export function estimatedCefr(value: string | number) {
   const band = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(band)) return '-';
+  if (!Number.isFinite(band) || band < 1 || band > 9) return '-';
   if (band >= 8.5) return 'C2';
   if (band >= 7) return 'C1';
-  if (band >= 5.5) return 'B2';
-  if (band >= 4) return 'B1';
+  if (band >= 6) return 'B2';
+  if (band >= 4.5) return 'B1';
   if (band >= 3) return 'A2';
   return 'A1';
 }
