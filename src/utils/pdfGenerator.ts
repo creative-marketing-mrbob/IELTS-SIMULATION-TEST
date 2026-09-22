@@ -60,7 +60,9 @@ function renderPDFHeader(
   sectionTitle: string,
   subtitle: string,
   evaluation: TestEvaluation,
-  logoData: string | null
+  logoData: string | null,
+  bandLabel: string,
+  bandValue: string | number
 ) {
   const margin = 12;
 
@@ -121,49 +123,21 @@ function renderPDFHeader(
 
   identityField('Full Name', evaluation.user.fullName, 14, 62, 77);
   identityField('WhatsApp', evaluation.user.whatsapp, 94, 62, 53);
-  identityField('Current Status', evaluation.user.currentStatus || '-', 14, 78, 96);
-  identityField('Age', String(evaluation.user.age ?? '-'), 113, 78, 34);
+  identityField('Current Status', evaluation.user.currentStatus || '-', 14, 78, 77);
+  identityField('Age', String(evaluation.user.age ?? '-'), 94, 78, 53);
 
   doc.setFillColor(7, 23, 54);
   doc.setDrawColor(7, 23, 54);
   doc.roundedRect(151, 62, 45, 30, 1.5, 1.5, 'FD');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text('OVERALL BAND', 173.5, 70, { align: 'center' });
-  doc.setFontSize(21);
-  doc.text(printableBand(reportOverallBand(evaluation)), 173.5, 84.5, { align: 'center' });
-}
-
-function renderScoreBandBox(doc: jsPDF, startY: number, bandValue: string | number, subLabel: string, rawScoreInfo?: string) {
-  doc.setFillColor(249, 250, 252);
-  doc.setDrawColor(147, 156, 171);
-  doc.setLineWidth(0.25);
-  doc.roundedRect(14, startY, 182, 20, 2, 2, 'FD');
-
-  doc.setTextColor(7, 23, 54);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text(subLabel.toUpperCase(), 22, startY + 8);
-
-  doc.setFontSize(18);
-  doc.setTextColor(7, 23, 54);
-  const displayBand = typeof bandValue === 'number' ? bandValue.toFixed(1) : String(bandValue);
-  doc.text(displayBand, 187, startY + 13.5, { align: 'right' });
-
-  if (rawScoreInfo) {
-    doc.setFont('helvetica', 'normal');
-    let infoFontSize = 8.5;
-    doc.setFontSize(infoFontSize);
-    while (infoFontSize > 6.5 && doc.getTextWidth(rawScoreInfo) > 88) {
-      infoFontSize -= 0.25;
-      doc.setFontSize(infoFontSize);
-    }
-    doc.setTextColor(71, 85, 105);
-    doc.text(rawScoreInfo, 96, startY + 11.5, { align: 'center' });
-  }
-
-  return startY + 24;
+  doc.setFontSize(6.5);
+  doc.text(`${bandLabel.toUpperCase()} BAND`, 155, 81.5);
+  const bandDisplay = typeof bandValue === 'number'
+    ? bandValue.toFixed(1)
+    : String(bandValue || 'Pending').replace(/\s+Evaluation$/i, '');
+  doc.setFontSize(typeof bandValue === 'number' ? 20 : 7.5);
+  doc.text(bandDisplay.toUpperCase(), 192, 81.5, { align: 'right' });
 }
 
 function renderPDFFooter(doc: jsPDF) {
@@ -180,18 +154,10 @@ function renderPDFFooter(doc: jsPDF) {
 export async function downloadReadingPDF(evalData: TestEvaluation) {
   const doc = new jsPDF();
   const logoData = await loadMrBobLogoData();
-  renderPDFHeader(doc, "IELTS Reading Diagnostic Report", "Cambridge 17 Academic Reading Test 4 Evaluation", evalData, logoData);
-
-  const tableStartY = renderScoreBandBox(
-    doc,
-    98,
-    evalData.reading.band,
-    "Estimated Reading Band",
-    `Raw Score: ${evalData.reading.rawScore || 0} / ${evalData.reading.totalQuestions || 12} Benar (${evalData.reading.correctPercentage || 0}%)`
-  );
+  renderPDFHeader(doc, "IELTS Reading Diagnostic Report", "Cambridge 17 Academic Reading Test 4 Evaluation", evalData, logoData, 'Reading', reportBand(evalData, 'reading'));
 
   autoTable(doc, {
-    startY: tableStartY + 4,
+    startY: 102,
     head: [['Kategori Evaluasi', 'Status / Skor', 'Feedback Diagnostik']],
     body: [
       ['Akurasi Jawaban Objektif', `${evalData.reading.rawScore || 0} / ${evalData.reading.totalQuestions || 12}`, 'Dihitung secara deterministik berdasarkan kunci Cambridge 17.'],
@@ -248,18 +214,10 @@ export async function downloadReadingPDF(evalData: TestEvaluation) {
 export async function downloadListeningPDF(evalData: TestEvaluation) {
   const doc = new jsPDF();
   const logoData = await loadMrBobLogoData();
-  renderPDFHeader(doc, "IELTS Listening Diagnostic Report", "Cambridge 18 Listening Test 4 Audio Evaluation", evalData, logoData);
-
-  const tableStartY = renderScoreBandBox(
-    doc,
-    98,
-    evalData.listening.band,
-    "Estimated Listening Band",
-    `Raw Score: ${evalData.listening.rawScore || 0} / ${evalData.listening.totalQuestions || 7} Benar (${evalData.listening.correctPercentage || 0}%)`
-  );
+  renderPDFHeader(doc, "IELTS Listening Diagnostic Report", "Cambridge 18 Listening Test 4 Audio Evaluation", evalData, logoData, 'Listening', reportBand(evalData, 'listening'));
 
   autoTable(doc, {
-    startY: tableStartY + 4,
+    startY: 102,
     head: [['Part Listening', 'Item Evaluasi', 'Feedback Diagnostik']],
     body: [
       ['Part 1: Job Enquiry', 'Job details / Medical clinic', 'Menangkap peran pekerjaan, tugas utama, dan kualifikasi yang dicari.'],
@@ -315,19 +273,12 @@ export async function downloadListeningPDF(evalData: TestEvaluation) {
 export async function downloadWritingPDF(evalData: TestEvaluation) {
   const doc = new jsPDF();
   const logoData = await loadMrBobLogoData();
-  renderPDFHeader(doc, "IELTS Writing Diagnostic Report", "Cambridge 18 Academic Writing Test 4 Assessment", evalData, logoData);
+  renderPDFHeader(doc, "IELTS Writing Diagnostic Report", "Cambridge 18 Academic Writing Test 4 Assessment", evalData, logoData, 'Writing', reportBand(evalData, 'writing'));
 
   const wDetail = evalData.writing.writingDetail;
-  const tableStartY = renderScoreBandBox(
-    doc,
-    98,
-    evalData.writing.band,
-    "Estimated Writing Band",
-    `Total Kata: ${evalData.writing.wordCount || 0} kata (Task 1: ${wDetail?.wordCountTask1 || 0} w, Task 2: ${wDetail?.wordCountTask2 || 0} w)`
-  );
 
   autoTable(doc, {
-    startY: tableStartY + 4,
+    startY: 102,
     head: [['IELTS Rubric Criterion', 'Score', 'Examiner Assessment & Evidence']],
     body: [
       ['Task 1: Task Achievement (TA)', `Band ${wDetail?.task1.criterion1.score.toFixed(1) || '6.0'}`, wDetail?.task1.criterion1.feedback || 'Presentasi overview tren harga metal 2014.'],
@@ -385,18 +336,12 @@ export async function downloadWritingPDF(evalData: TestEvaluation) {
 export async function downloadSpeakingPDF(evalData: TestEvaluation) {
   const doc = new jsPDF();
   const logoData = await loadMrBobLogoData();
-  renderPDFHeader(doc, "IELTS Speaking Diagnostic Report", "Cambridge 18 Speaking Practice Test 4 Rubric Evaluation", evalData, logoData);
+  renderPDFHeader(doc, "IELTS Speaking Diagnostic Report", "Cambridge 18 Speaking Practice Test 4 Rubric Evaluation", evalData, logoData, 'Speaking', reportBand(evalData, 'speaking'));
 
   const spDetail = evalData.speaking.speakingDetail;
-  const tableStartY = renderScoreBandBox(
-    doc,
-    98,
-    evalData.speaking.band,
-    "Estimated Speaking Band"
-  );
 
   autoTable(doc, {
-    startY: tableStartY + 4,
+    startY: 102,
     head: [['IELTS Speaking Criterion', 'Score', 'Rubric Match & Diagnostic Feedback']],
     body: [
       ['Fluency and Coherence (FC)', `Band ${spDetail?.fc.score.toFixed(1) || '6.0'}`, spDetail?.fc.feedback || 'Kelancaran bicara tanpa jeda panjang.'],
