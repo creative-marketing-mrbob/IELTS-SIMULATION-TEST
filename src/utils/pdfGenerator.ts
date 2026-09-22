@@ -132,12 +132,12 @@ function renderPDFHeader(
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
-  doc.text(`${bandLabel.toUpperCase()} BAND`, 173.5, 70.5, { align: 'center' });
+  doc.text(`${bandLabel.toUpperCase()} BAND`, 173.5, 68.5, { align: 'center' });
   const bandDisplay = typeof bandValue === 'number'
     ? bandValue.toFixed(1)
     : String(bandValue || 'Pending').replace(/\s+Evaluation$/i, '');
-  doc.setFontSize(typeof bandValue === 'number' ? 28 : 9);
-  doc.text(bandDisplay.toUpperCase(), 173.5, 87, { align: 'center' });
+  doc.setFontSize(typeof bandValue === 'number' ? 34 : 9);
+  doc.text(bandDisplay.toUpperCase(), 173.5, 83, { align: 'center' });
 }
 
 function renderPDFFooter(doc: jsPDF) {
