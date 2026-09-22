@@ -1,6 +1,55 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { TestEvaluation } from '../types/ielts';
+import type { TestEvaluation } from '../types/ielts';
+
+let mrBobLogoDataPromise: Promise<string | null> | null = null;
+
+function loadMrBobLogoData(): Promise<string | null> {
+  if (!mrBobLogoDataPromise) {
+    mrBobLogoDataPromise = fetch('/logo-mrbob.png')
+      .then(response => {
+        if (!response.ok) throw new Error('Mr.BOB logo could not be loaded.');
+        return response.blob();
+      })
+      .then(blob => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      }))
+      .catch(() => null);
+  }
+  return mrBobLogoDataPromise;
+}
+
+function printableBand(value: string | number | undefined) {
+  return typeof value === 'number' ? value.toFixed(1) : String(value ?? 'Pending');
+}
+
+function reportBand(evalData: TestEvaluation, section: 'reading' | 'listening' | 'writing' | 'speaking') {
+  const status = evalData.manualChecks?.sectionStatuses?.[section]?.status;
+  const tutorBand = evalData.manualChecks?.[section]?.tutorBand;
+  if (status === 'SUBMITTED' && typeof tutorBand === 'number') return tutorBand;
+  return evalData[section].band;
+}
+
+function reportOverallBand(evalData: TestEvaluation) {
+  if (evalData.manualChecks?.isApproved && typeof evalData.manualChecks.tutorOverallBand === 'number') {
+    return evalData.manualChecks.tutorOverallBand;
+  }
+  return evalData.overallBand;
+}
+
+function estimatedCefr(value: string | number) {
+  const band = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(band)) return '-';
+  if (band >= 8.5) return 'C2';
+  if (band >= 7) return 'C1';
+  if (band >= 5.5) return 'B2';
+  if (band >= 4) return 'B1';
+  if (band >= 3) return 'A2';
+  return 'A1';
+}
 
 function renderPDFHeader(doc: jsPDF, sectionTitle: string, subtitle: string, evaluation: TestEvaluation) {
   // Top Brand Banner
@@ -384,58 +433,199 @@ export function downloadSpeakingPDF(evalData: TestEvaluation) {
   doc.save(`Speaking_Report_${evalData.resultId}.pdf`);
 }
 
-// 5. COMPREHENSIVE 4-SKILLS DIAGNOSTIC SUMMARY
-export function downloadComprehensivePDF(evalData: TestEvaluation) {
-  const doc = new jsPDF();
-  renderPDFHeader(doc, "IELTS 4-Skills Diagnostic Summary", "Complete Academic Diagnostic & Cambridge Simulation Report", evalData);
+// 5. IELTS SIMULATION TEST REPORT FORM
+export async function downloadComprehensivePDF(evalData: TestEvaluation) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const logoData = await loadMrBobLogoData();
+  const pageWidth = doc.internal.pageSize.width;
+  const margin = 12;
+  const contentWidth = pageWidth - margin * 2;
+  const completedDate = new Date(evalData.completedAt);
+  const dateLabel = Number.isNaN(completedDate.getTime())
+    ? '-'
+    : completedDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  const readingBand = reportBand(evalData, 'reading');
+  const listeningBand = reportBand(evalData, 'listening');
+  const writingBand = reportBand(evalData, 'writing');
+  const speakingBand = reportBand(evalData, 'speaking');
+  const overallBand = reportOverallBand(evalData);
+  const overallDisplay = printableBand(overallBand);
 
-  const tableStartY = renderScoreBandBox(
-    doc,
-    73,
-    evalData.overallBand,
-    "Overall Estimated IELTS Band",
-    `Target Skor: ${evalData.user.targetScore} • Evaluasi Komprehensif 4 Keterampilan`
-  );
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, 297, 'F');
+  doc.setDrawColor(20, 28, 45);
+  doc.setLineWidth(0.45);
 
-  autoTable(doc, {
-    startY: tableStartY + 4,
-    head: [['Section Module', 'Estimated Band', 'Hasil Simulasi', 'Fokus Konsultasi Mentor']],
-    body: [
-      ['Reading', typeof evalData.reading.band === 'number' ? evalData.reading.band.toFixed(1) : String(evalData.reading.band), `${evalData.reading.rawScore || 0}/${evalData.reading.totalQuestions || 12} benar`, 'Review True/False scanning di WhatsApp'],
-      ['Listening', typeof evalData.listening.band === 'number' ? evalData.listening.band.toFixed(1) : String(evalData.listening.band), `${evalData.listening.rawScore || 0}/${evalData.listening.totalQuestions || 7} benar`, 'Latihan audio detail & distractor recognition'],
-      ['Writing', typeof evalData.writing.band === 'number' ? evalData.writing.band.toFixed(1) : String(evalData.writing.band), `${evalData.writing.wordCount || 0} total kata`, 'Sesi feedback Task 1 chart & Task 2 essay'],
-      ['Speaking', typeof evalData.speaking.band === 'number' ? evalData.speaking.band.toFixed(1) : String(evalData.speaking.band), 'Part 1, 2, 3 Siap', '1-on-1 WhatsApp pronunciation & fluency review']
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: [31, 92, 255], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
-    bodyStyles: { fontSize: 8, cellPadding: 3.5, textColor: [17, 24, 39] },
-    columnStyles: {
-      0: { cellWidth: 40, fontStyle: 'bold' },
-      1: { cellWidth: 30 },
-      2: { cellWidth: 45 },
-      3: { cellWidth: 'auto' }
-    },
-    margin: { left: 14, right: 14 }
+  if (logoData) {
+    doc.addImage(logoData, 'PNG', margin, 10, 24, 24, undefined, 'FAST');
+  } else {
+    doc.setFillColor(239, 29, 39);
+    doc.roundedRect(margin, 10, 24, 24, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('Mr.BOB', margin + 12, 23, { align: 'center' });
+  }
+
+  doc.setTextColor(7, 23, 54);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(24);
+  doc.text('IELTS', 41, 20);
+  doc.setFontSize(15);
+  doc.text('SIMULATION TEST', 41, 29);
+  doc.setFontSize(8.5);
+  doc.setTextColor(70, 80, 96);
+  doc.text('Test Report Form', 41, 34);
+
+  doc.setFillColor(247, 249, 252);
+  doc.rect(139, 13, 59, 11, 'FD');
+  doc.setTextColor(7, 23, 54);
+  doc.setFontSize(9);
+  doc.text('ACADEMIC SIMULATION', 168.5, 20.2, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(85, 94, 109);
+  doc.text('Issued by Mr.BOB Kampung Inggris', 168.5, 29, { align: 'center' });
+
+  doc.setDrawColor(224, 53, 63);
+  doc.setLineWidth(1.3);
+  doc.line(margin, 39, pageWidth - margin, 39);
+
+  doc.setFillColor(255, 248, 248);
+  doc.setDrawColor(244, 182, 186);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(margin, 43, contentWidth, 14, 1.5, 1.5, 'FD');
+  doc.setTextColor(122, 32, 38);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.4);
+  doc.text('IMPORTANT', margin + 4, 48.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(75, 74, 82);
+  const disclaimer = 'This report records an IELTS simulation conducted by Mr.BOB Kampung Inggris. It is intended for learning and diagnostic purposes and is not an official IELTS Test Report Form or language certificate.';
+  doc.text(doc.splitTextToSize(disclaimer, 155), margin + 24, 48.5);
+
+  const field = (label: string, value: string, x: number, y: number, width: number) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.7);
+    doc.setTextColor(83, 91, 107);
+    doc.text(label.toUpperCase(), x, y - 2);
+    doc.setFillColor(249, 250, 252);
+    doc.setDrawColor(147, 156, 171);
+    doc.setLineWidth(0.25);
+    doc.rect(x, y, width, 10, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(20, 28, 45);
+    const fitted = doc.splitTextToSize(value || '-', width - 5)[0] || '-';
+    doc.text(fitted, x + 2.5, y + 6.5);
+  };
+
+  field('Centre ID', 'MRBOB-KI', margin, 64, 36);
+  field('Test Date', dateLabel, 53, 64, 47);
+  field('Candidate Number', evalData.resultId, 105, 64, 93);
+
+  doc.setTextColor(7, 23, 54);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.text('Candidate Details', margin, 84);
+  doc.setLineWidth(0.35);
+  doc.setDrawColor(20, 28, 45);
+  doc.line(margin, 87, pageWidth - margin, 87);
+
+  field('Full Name', evalData.user.fullName, margin, 93, 116);
+  field('Candidate ID', evalData.user.candidateId || evalData.resultId, margin, 109, 116);
+  field('Age', String(evalData.user.age ?? '-'), margin, 125, 35);
+  field('Current Status', evalData.user.currentStatus || '-', 52, 125, 76);
+  field('WhatsApp', evalData.user.whatsapp || '-', margin, 141, 116);
+  field('Target Band', evalData.user.targetScore || '-', 133, 125, 65);
+  field('Report Status', evalData.status || '-', 133, 141, 65);
+
+  doc.setFillColor(249, 250, 252);
+  doc.setDrawColor(147, 156, 171);
+  doc.rect(133, 93, 65, 26, 'FD');
+  if (logoData) doc.addImage(logoData, 'PNG', 156.5, 95, 18, 18, undefined, 'FAST');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(92, 101, 116);
+  doc.text('MR.BOB KAMPUNG INGGRIS', 165.5, 116.5, { align: 'center' });
+
+  doc.setTextColor(7, 23, 54);
+  doc.setFontSize(10.5);
+  doc.text('Test Results', margin, 162);
+  doc.setDrawColor(20, 28, 45);
+  doc.line(margin, 165, pageWidth - margin, 165);
+
+  const scoreItems = [
+    ['Listening', printableBand(listeningBand)],
+    ['Reading', printableBand(readingBand)],
+    ['Writing', printableBand(writingBand)],
+    ['Speaking', printableBand(speakingBand)],
+    ['Overall Band', overallDisplay],
+    ['CEFR Level', estimatedCefr(overallBand)]
+  ];
+  const scoreGap = 3;
+  const scoreWidth = (contentWidth - scoreGap * 5) / 6;
+  scoreItems.forEach(([label, score], index) => {
+    const x = margin + index * (scoreWidth + scoreGap);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.2);
+    doc.setTextColor(20, 28, 45);
+    doc.text(label, x + scoreWidth / 2, 172, { align: 'center' });
+    doc.setFillColor(index === 4 ? 7 : 239, index === 4 ? 37 : 242, index === 4 ? 92 : 246);
+    doc.setDrawColor(90, 100, 116);
+    doc.rect(x, 175, scoreWidth, 17, 'FD');
+    doc.setTextColor(index === 4 ? 255 : 20, index === 4 ? 255 : 28, index === 4 ? 255 : 45);
+    doc.setFontSize(12);
+    doc.text(score, x + scoreWidth / 2, 186, { align: 'center' });
   });
 
-  const nextY = (doc as any).lastAutoTable.finalY + 8;
-
-  doc.setFillColor(248, 251, 255);
-  doc.setDrawColor(230, 234, 242);
-  doc.roundedRect(14, nextY, 182, 32, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(8, 36, 92);
-  doc.text("Langkah Konsultasi Bersama Mr.BOB IELTS Team:", 20, nextY + 7);
-
+  doc.setTextColor(7, 23, 54);
+  doc.setFontSize(10.5);
+  doc.text('Academic Team Comments', margin, 203);
+  doc.setDrawColor(20, 28, 45);
+  doc.line(margin, 206, pageWidth - margin, 206);
+  doc.setFillColor(250, 251, 253);
+  doc.setDrawColor(147, 156, 171);
+  doc.rect(margin, 211, 119, 38, 'FD');
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`1. Hubungi mentor senior Mr.BOB di WhatsApp: +62 822-1234-5678.`, 20, nextY + 14);
-  doc.text(`2. Sertakan Result ID (${evalData.resultId}) untuk meminta bedah skor per skill.`, 20, nextY + 20);
-  doc.text(`3. Susun rencana belajar terstruktur untuk mencapai target ${evalData.user.targetScore}.`, 20, nextY + 26);
+  doc.setFontSize(7.5);
+  doc.setTextColor(60, 70, 86);
+  const recommendations = [
+    ...(evalData.adminNotes ? [evalData.adminNotes] : []),
+    ...(evalData.writing.recommendations || []),
+    ...(evalData.speaking.recommendations || [])
+  ].filter(Boolean).slice(0, 3);
+  const comment = recommendations.length
+    ? recommendations.map((item, index) => `${index + 1}. ${item}`).join('\n')
+    : `Keep practising all four skills consistently. Use Result ID ${evalData.resultId} when discussing this report with the Mr.BOB academic team.`;
+  doc.text(doc.splitTextToSize(comment, 111).slice(0, 7), margin + 4, 217);
 
-  renderPDFFooter(doc);
-  doc.save(`IELTS_Diagnostic_Summary_${evalData.resultId}.pdf`);
+  doc.setFillColor(250, 251, 253);
+  doc.rect(136, 211, 62, 38, 'FD');
+  if (logoData) doc.addImage(logoData, 'PNG', 156, 214, 22, 21, undefined, 'FAST');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.2);
+  doc.setTextColor(20, 28, 45);
+  doc.text('MR.BOB ACADEMIC TEAM', 167, 239, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(92, 101, 116);
+  doc.text('Verified Simulation Result', 167, 244, { align: 'center' });
+
+  field('Date Issued', dateLabel, margin, 258, 48);
+  field('Test Report Form Number', evalData.resultId, 65, 258, 91);
+  field('Module', 'ACADEMIC', 161, 258, 37);
+
+  doc.setFillColor(7, 23, 54);
+  doc.rect(0, 279, pageWidth, 18, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.2);
+  doc.text('Mr.BOB Kampung Inggris - IELTS Simulation Test', margin, 286);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.3);
+  doc.text('Diagnostic learning report - not an official IELTS certificate', margin, 291);
+  doc.text(`Result ID: ${evalData.resultId}`, pageWidth - margin, 288.5, { align: 'right' });
+
+  doc.save(`IELTS_Simulation_Test_Report_${evalData.resultId}.pdf`);
 }
