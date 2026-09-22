@@ -126,10 +126,10 @@ function renderPDFHeader(
   identityField('Current Status', evaluation.user.currentStatus || '-', 14, 78, 77);
   identityField('Age', String(evaluation.user.age ?? '-'), 94, 78, 53);
 
-  doc.setFillColor(7, 23, 54);
-  doc.setDrawColor(7, 23, 54);
-  doc.roundedRect(151, 62, 45, 30, 1.5, 1.5, 'FD');
-  doc.setTextColor(255, 255, 255);
+  doc.setDrawColor(147, 156, 171);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(151, 62, 45, 30, 1.5, 1.5, 'S');
+  doc.setTextColor(20, 28, 45);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.text(`${bandLabel.toUpperCase()} BAND`, 173.5, 68.5, { align: 'center' });
