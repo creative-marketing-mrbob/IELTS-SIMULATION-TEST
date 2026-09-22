@@ -1,6 +1,10 @@
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTableModule from 'jspdf-autotable';
 import type { TestEvaluation } from '../types/ielts';
+
+const autoTable = (
+  (autoTableModule as unknown as { default?: typeof autoTableModule }).default ?? autoTableModule
+) as typeof autoTableModule;
 
 let mrBobLogoDataPromise: Promise<string | null> | null = null;
 
@@ -52,25 +56,20 @@ export function estimatedCefr(value: string | number) {
 }
 
 function renderPDFHeader(doc: jsPDF, sectionTitle: string, subtitle: string, evaluation: TestEvaluation) {
-  // Top Brand Banner
-  doc.setFillColor(31, 92, 255); // #1F5CFF Brand Blue
+  // Match the certificate's white, navy, red, and neutral-grey visual system.
+  doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, 210, 24, 'F');
 
-  // Red accent line
-  doc.setFillColor(233, 54, 63); // #E9363F Coral Red
-  doc.rect(0, 24, 210, 1.5, 'F');
-
-  // Brand Name
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(7, 23, 54);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text("Mr.BOB IELTS ACADEMY", 14, 11);
+  doc.setFontSize(19);
+  doc.text('IELTS', 14, 11.5);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.text("Official IELTS Diagnostic & Cambridge Simulation Report", 14, 17);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('SIMULATION TEST', 14, 18);
 
-  // Result ID on right
+  doc.setTextColor(20, 28, 45);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.text(`ID: ${evaluation.resultId}`, 196, 11, { align: 'right' });
@@ -78,8 +77,11 @@ function renderPDFHeader(doc: jsPDF, sectionTitle: string, subtitle: string, eva
   doc.setFontSize(8);
   doc.text(new Date(evaluation.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), 196, 17, { align: 'right' });
 
+  doc.setFillColor(224, 53, 63);
+  doc.rect(0, 24, 210, 1.3, 'F');
+
   // Section Title
-  doc.setTextColor(8, 36, 92); // #08245C Dark Blue
+  doc.setTextColor(7, 23, 54);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.text(sectionTitle.toUpperCase(), 14, 34);
@@ -90,9 +92,9 @@ function renderPDFHeader(doc: jsPDF, sectionTitle: string, subtitle: string, eva
   doc.text(subtitle, 14, 40);
 
   // Candidate Information Card
-  doc.setFillColor(248, 251, 255);
-  doc.setDrawColor(230, 234, 242);
-  doc.setLineWidth(0.5);
+  doc.setFillColor(249, 250, 252);
+  doc.setDrawColor(147, 156, 171);
+  doc.setLineWidth(0.25);
   doc.roundedRect(14, 45, 182, 24, 2, 2, 'FD');
 
   doc.setTextColor(51, 65, 85);
@@ -119,29 +121,34 @@ function renderPDFHeader(doc: jsPDF, sectionTitle: string, subtitle: string, eva
   doc.text(evaluation.user.currentStatus, 150, 52);
   doc.text(String(evaluation.user.age), 150, 58);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(31, 92, 255);
+  doc.setTextColor(224, 53, 63);
   doc.text(evaluation.status, 150, 64);
 }
 
 function renderScoreBandBox(doc: jsPDF, startY: number, bandValue: string | number, subLabel: string, rawScoreInfo?: string) {
-  doc.setFillColor(234, 242, 255);
-  doc.setDrawColor(180, 206, 255);
-  doc.setLineWidth(0.5);
+  doc.setFillColor(249, 250, 252);
+  doc.setDrawColor(147, 156, 171);
+  doc.setLineWidth(0.25);
   doc.roundedRect(14, startY, 182, 26, 2, 2, 'FD');
 
-  doc.setTextColor(31, 92, 255);
+  doc.setTextColor(7, 23, 54);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.text(subLabel.toUpperCase(), 22, startY + 9);
 
   doc.setFontSize(18);
-  doc.setTextColor(8, 36, 92);
+  doc.setTextColor(7, 23, 54);
   const displayBand = typeof bandValue === 'number' ? bandValue.toFixed(1) : String(bandValue);
   doc.text(displayBand, 22, startY + 21);
 
   if (rawScoreInfo) {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    let infoFontSize = 9;
+    doc.setFontSize(infoFontSize);
+    while (infoFontSize > 6.5 && doc.getTextWidth(rawScoreInfo) > 102) {
+      infoFontSize -= 0.25;
+      doc.setFontSize(infoFontSize);
+    }
     doc.setTextColor(71, 85, 105);
     doc.text(rawScoreInfo, 90, startY + 12);
     doc.setFontSize(8);
@@ -154,13 +161,12 @@ function renderScoreBandBox(doc: jsPDF, startY: number, bandValue: string | numb
 
 function renderPDFFooter(doc: jsPDF) {
   const pageHeight = doc.internal.pageSize.height;
-  doc.setDrawColor(230, 234, 242);
-  doc.line(14, pageHeight - 14, 196, pageHeight - 14);
-
-  doc.setFontSize(7.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text("Mr.BOB IELTS Academy — Diagnostic & Cambridge Simulation Report", 14, pageHeight - 9);
-  doc.text("Konsultasi WhatsApp: +62 822-1234-5678", 196, pageHeight - 9, { align: 'right' });
+  doc.setFillColor(7, 23, 54);
+  doc.rect(0, pageHeight - 18, 210, 18, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.text('mrbobacademia.com | 0821-3195-3578', 105, pageHeight - 8.5, { align: 'center' });
 }
 
 // 1. READING REPORT PDF
@@ -186,7 +192,7 @@ export function downloadReadingPDF(evalData: TestEvaluation) {
       ['Passage 3: Blindfold Chess', 'Technical Terminology', 'Kemampuan menangkap detail kognitif dan metode memori.']
     ],
     theme: 'striped',
-    headStyles: { fillColor: [31, 92, 255], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    headStyles: { fillColor: [7, 23, 54], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
     bodyStyles: { fontSize: 8, cellPadding: 3.5, textColor: [17, 24, 39] },
     columnStyles: {
       0: { cellWidth: 55, fontStyle: 'bold' },
@@ -198,13 +204,13 @@ export function downloadReadingPDF(evalData: TestEvaluation) {
 
   const nextY = (doc as any).lastAutoTable.finalY + 8;
 
-  doc.setFillColor(248, 251, 255);
-  doc.setDrawColor(230, 234, 242);
+  doc.setFillColor(249, 250, 252);
+  doc.setDrawColor(147, 156, 171);
   doc.roundedRect(14, nextY, 182, 38, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(8, 36, 92);
+  doc.setTextColor(7, 23, 54);
   doc.text("Strengths & Observations:", 20, nextY + 7);
 
   doc.setFont('helvetica', 'normal');
@@ -216,7 +222,7 @@ export function downloadReadingPDF(evalData: TestEvaluation) {
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(8, 36, 92);
+  doc.setTextColor(7, 23, 54);
   doc.text("Actionable Recommendations:", 20, nextY + 24);
 
   doc.setFont('helvetica', 'normal');
@@ -252,7 +258,7 @@ export function downloadListeningPDF(evalData: TestEvaluation) {
       ['Part 3: Origami Study', 'Psychology Research', 'Memahami angka persentase peningkatan penalaran spasial anak.']
     ],
     theme: 'striped',
-    headStyles: { fillColor: [31, 92, 255], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    headStyles: { fillColor: [7, 23, 54], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
     bodyStyles: { fontSize: 8, cellPadding: 3.5, textColor: [17, 24, 39] },
     columnStyles: {
       0: { cellWidth: 50, fontStyle: 'bold' },
@@ -264,13 +270,13 @@ export function downloadListeningPDF(evalData: TestEvaluation) {
 
   const nextY = (doc as any).lastAutoTable.finalY + 8;
 
-  doc.setFillColor(248, 251, 255);
-  doc.setDrawColor(230, 234, 242);
+  doc.setFillColor(249, 250, 252);
+  doc.setDrawColor(147, 156, 171);
   doc.roundedRect(14, nextY, 182, 38, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(8, 36, 92);
+  doc.setTextColor(7, 23, 54);
   doc.text("Strengths & Observations:", 20, nextY + 7);
 
   doc.setFont('helvetica', 'normal');
@@ -282,7 +288,7 @@ export function downloadListeningPDF(evalData: TestEvaluation) {
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(8, 36, 92);
+  doc.setTextColor(7, 23, 54);
   doc.text("Actionable Recommendations:", 20, nextY + 24);
 
   doc.setFont('helvetica', 'normal');
@@ -321,7 +327,7 @@ export function downloadWritingPDF(evalData: TestEvaluation) {
       ['Grammar Range & Accuracy (GRA)', `Band ${(((wDetail?.task1.gra.score || 5.5) + (wDetail?.task2.gra.score || 5.5)) / 2).toFixed(1)}`, 'Variasi klausa kompleks, kalimat pasif, dan ketepatan preposisi.']
     ],
     theme: 'striped',
-    headStyles: { fillColor: [31, 92, 255], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    headStyles: { fillColor: [7, 23, 54], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
     bodyStyles: { fontSize: 8, cellPadding: 3.5, textColor: [17, 24, 39] },
     columnStyles: {
       0: { cellWidth: 55, fontStyle: 'bold' },
@@ -333,13 +339,13 @@ export function downloadWritingPDF(evalData: TestEvaluation) {
 
   const nextY = (doc as any).lastAutoTable.finalY + 8;
 
-  doc.setFillColor(248, 251, 255);
-  doc.setDrawColor(230, 234, 242);
+  doc.setFillColor(249, 250, 252);
+  doc.setDrawColor(147, 156, 171);
   doc.roundedRect(14, nextY, 182, 38, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(8, 36, 92);
+  doc.setTextColor(7, 23, 54);
   doc.text("Candidate Strengths:", 20, nextY + 7);
 
   doc.setFont('helvetica', 'normal');
@@ -351,7 +357,7 @@ export function downloadWritingPDF(evalData: TestEvaluation) {
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(8, 36, 92);
+  doc.setTextColor(7, 23, 54);
   doc.text("Priority Improvement Focus:", 20, nextY + 24);
 
   doc.setFont('helvetica', 'normal');
@@ -389,7 +395,7 @@ export function downloadSpeakingPDF(evalData: TestEvaluation) {
       ['Pronunciation (PRO)', `Band ${spDetail?.pro.score.toFixed(1) || '6.0'}`, spDetail?.pro.feedback || 'Kejelasan artikulasi, intonasi, dan word stress.']
     ],
     theme: 'striped',
-    headStyles: { fillColor: [31, 92, 255], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    headStyles: { fillColor: [7, 23, 54], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
     bodyStyles: { fontSize: 8, cellPadding: 3.5, textColor: [17, 24, 39] },
     columnStyles: {
       0: { cellWidth: 55, fontStyle: 'bold' },
@@ -401,13 +407,13 @@ export function downloadSpeakingPDF(evalData: TestEvaluation) {
 
   const nextY = (doc as any).lastAutoTable.finalY + 8;
 
-  doc.setFillColor(248, 251, 255);
-  doc.setDrawColor(230, 234, 242);
+  doc.setFillColor(249, 250, 252);
+  doc.setDrawColor(147, 156, 171);
   doc.roundedRect(14, nextY, 182, 38, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(8, 36, 92);
+  doc.setTextColor(7, 23, 54);
   doc.text("Speaking Strengths:", 20, nextY + 7);
 
   doc.setFont('helvetica', 'normal');
@@ -419,7 +425,7 @@ export function downloadSpeakingPDF(evalData: TestEvaluation) {
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(8, 36, 92);
+  doc.setTextColor(7, 23, 54);
   doc.text("Priority Improvement Focus:", 20, nextY + 24);
 
   doc.setFont('helvetica', 'normal');
