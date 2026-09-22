@@ -131,13 +131,13 @@ function renderPDFHeader(
   doc.roundedRect(151, 62, 45, 30, 1.5, 1.5, 'FD');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.text(`${bandLabel.toUpperCase()} BAND`, 155, 81.5);
+  doc.setFontSize(7);
+  doc.text(`${bandLabel.toUpperCase()} BAND`, 173.5, 70.5, { align: 'center' });
   const bandDisplay = typeof bandValue === 'number'
     ? bandValue.toFixed(1)
     : String(bandValue || 'Pending').replace(/\s+Evaluation$/i, '');
-  doc.setFontSize(typeof bandValue === 'number' ? 20 : 7.5);
-  doc.text(bandDisplay.toUpperCase(), 192, 81.5, { align: 'right' });
+  doc.setFontSize(typeof bandValue === 'number' ? 28 : 9);
+  doc.text(bandDisplay.toUpperCase(), 173.5, 87, { align: 'center' });
 }
 
 function renderPDFFooter(doc: jsPDF) {
