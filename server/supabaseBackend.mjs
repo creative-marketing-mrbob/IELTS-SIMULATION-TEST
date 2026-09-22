@@ -605,7 +605,7 @@ function buildInitialEvaluation(candidate, answers, progress) {
       registeredAt: candidate.created_at
     },
     completedAt: new Date().toISOString(),
-    overallBand: 'Pending Evaluation',
+    overallBand: 0,
     reading: { band: 'Pending Evaluation', rawScore: 0, totalQuestions: readingMax },
     listening: { band: 'Pending Evaluation', rawScore: 0, totalQuestions: listeningMax },
     writing: { band: 'Pending Evaluation', assessmentStatus: 'Awaiting Evaluation' },
@@ -636,6 +636,16 @@ function buildInitialEvaluation(candidate, answers, progress) {
     },
     auditTrail: []
   };
+}
+
+function calculateFourSkillOverallBand(reading, listening, writing, speaking) {
+  const bandOrZero = value => typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return Math.round(((
+    bandOrZero(reading) +
+    bandOrZero(listening) +
+    bandOrZero(writing) +
+    bandOrZero(speaking)
+  ) / 4) * 2) / 2;
 }
 
 function speakingDetailFromAiAssessment(assessment) {
@@ -839,25 +849,22 @@ async function hydrateCandidate(candidateId) {
     if (!evaluation.dualComparison) {
       evaluation.dualComparison = { activeMode: 'AI' };
     }
-    const rBand = typeof evaluation.reading?.band === 'number' ? evaluation.reading.band : null;
-    const lBand = typeof evaluation.listening?.band === 'number' ? evaluation.listening.band : null;
-    const wBand = typeof activeWriting?.calculated_band === 'number' ? activeWriting.calculated_band : null;
-    const sBand = typeof activeSpeaking?.calculated_band === 'number' ? activeSpeaking.calculated_band : null;
+    const rBand = typeof evaluation.reading?.band === 'number' ? evaluation.reading.band : 0;
+    const lBand = typeof evaluation.listening?.band === 'number' ? evaluation.listening.band : 0;
+    const wBand = typeof activeWriting?.calculated_band === 'number' ? activeWriting.calculated_band : 0;
+    const sBand = typeof activeSpeaking?.calculated_band === 'number' ? activeSpeaking.calculated_band : 0;
+    const overallBand = calculateFourSkillOverallBand(rBand, lBand, wBand, sBand);
 
     evaluation.dualComparison.aiAssessment = {
       ...(evaluation.dualComparison.aiAssessment || {}),
-      readingBand: rBand,
-      listeningBand: lBand,
-      writingBand: wBand ?? evaluation.dualComparison.aiAssessment?.writingBand,
-      speakingBand: sBand ?? evaluation.dualComparison.aiAssessment?.speakingBand,
-      overallBand: (rBand !== null && lBand !== null && wBand !== null && sBand !== null)
-        ? Math.round(((rBand + lBand + wBand + sBand) / 4) * 2) / 2
-        : evaluation.dualComparison.aiAssessment?.overallBand
+      readingBand: typeof evaluation.reading?.band === 'number' ? rBand : evaluation.reading?.band,
+      listeningBand: typeof evaluation.listening?.band === 'number' ? lBand : evaluation.listening?.band,
+      writingBand: activeWriting ? wBand : evaluation.dualComparison.aiAssessment?.writingBand ?? evaluation.writing?.band,
+      speakingBand: activeSpeaking ? sBand : evaluation.dualComparison.aiAssessment?.speakingBand ?? evaluation.speaking?.band,
+      overallBand
     };
 
-    if (rBand !== null && lBand !== null && wBand !== null && sBand !== null) {
-      evaluation.overallBand = Math.round(((rBand + lBand + wBand + sBand) / 4) * 2) / 2;
-    }
+    evaluation.overallBand = overallBand;
   }
 
   return {
@@ -1274,7 +1281,7 @@ function candidateRowToUserProfile(candidate) {
   };
 }
 
-function aiAssessmentToComparisonPatch(section, assessment, detail, existingComparison = {}) {
+function aiAssessmentToComparisonPatch(section, assessment, detail, existingComparison = {}, overallBand) {
   const current = existingComparison.aiAssessment || {};
   return {
     ...existingComparison,
@@ -1283,7 +1290,7 @@ function aiAssessmentToComparisonPatch(section, assessment, detail, existingComp
       listeningBand: current.listeningBand ?? 'Not Evaluated',
       writingBand: section === 'writing' ? assessment.estimated_band : current.writingBand ?? 'Not Evaluated',
       speakingBand: section === 'speaking' ? assessment.estimated_band : current.speakingBand ?? 'Not Evaluated',
-      overallBand: current.overallBand ?? 'Not Evaluated',
+      overallBand,
       writingDetail: section === 'writing' ? detail : current.writingDetail,
       speakingDetail: section === 'speaking' ? detail : current.speakingDetail
     },
@@ -1332,8 +1339,18 @@ async function autoEvaluateSection(req, body) {
   await persistAiAssessment(payload.assessment);
 
   const baseEvaluation = existing.evaluation || buildInitialEvaluation(rowToCandidate(candidate), existing.answers || emptyAnswers(candidate.candidate_id), existing.progress);
+  const readingBand = typeof baseEvaluation.reading?.band === 'number' ? baseEvaluation.reading.band : 0;
+  const listeningBand = typeof baseEvaluation.listening?.band === 'number' ? baseEvaluation.listening.band : 0;
+  const writingBand = section === 'writing'
+    ? payload.assessment.calculated_band ?? payload.assessment.estimated_band
+    : baseEvaluation.aiAssessments?.writing?.calculated_band ?? baseEvaluation.aiAssessments?.writing?.estimated_band ?? 0;
+  const speakingBand = section === 'speaking'
+    ? payload.assessment.calculated_band ?? payload.assessment.estimated_band
+    : baseEvaluation.aiAssessments?.speaking?.calculated_band ?? baseEvaluation.aiAssessments?.speaking?.estimated_band ?? 0;
+  const overallBand = calculateFourSkillOverallBand(readingBand, listeningBand, writingBand, speakingBand);
   const mergedEvaluation = {
     ...baseEvaluation,
+    overallBand,
     aiAssessments: {
       ...(baseEvaluation.aiAssessments || {}),
       [section]: payload.assessment
@@ -1342,7 +1359,7 @@ async function autoEvaluateSection(req, body) {
       ...(baseEvaluation.aiAssessmentHistory || []),
       payload.assessment
     ],
-    dualComparison: aiAssessmentToComparisonPatch(section, payload.assessment, payload.detail, baseEvaluation.dualComparison),
+    dualComparison: aiAssessmentToComparisonPatch(section, payload.assessment, payload.detail, baseEvaluation.dualComparison, overallBand),
     [section]: payload.report || baseEvaluation[section]
   };
 

@@ -1,6 +1,6 @@
 import { UserAnswers, TestEvaluation, UserProfile, DualAssessmentComparison } from '../types/ielts';
 import { evaluateReadingObjective, evaluateListeningObjective } from './scoringEngine';
-import { createPendingSpeakingReport, createPendingWritingReport, roundToNearestHalfBand } from './subjectiveAssessment';
+import { calculateFourSkillOverallBand, createPendingSpeakingReport, createPendingWritingReport } from './subjectiveAssessment';
 import { buildCandidateRawResponseStore, initializeManualVerificationRecord } from './rawResponseManager';
 
 export function calculateReadingScore(answers: Record<number, string>) {
@@ -30,8 +30,9 @@ export function generateEvaluation(user: UserProfile, answers: UserAnswers): Tes
   const writingPending = createPendingWritingReport();
   const speakingPending = createPendingSpeakingReport();
 
-  const readingBandNum = typeof reading.band === 'number' ? reading.band : 5.5;
-  const listeningBandNum = typeof listening.band === 'number' ? listening.band : 5.5;
+  const readingBandNum = typeof reading.band === 'number' ? reading.band : 0;
+  const listeningBandNum = typeof listening.band === 'number' ? listening.band : 0;
+  const overallBand = calculateFourSkillOverallBand(readingBandNum, listeningBandNum, 0, 0);
 
   const rawResponses = buildCandidateRawResponseStore(user, answers);
   const manualChecks = initializeManualVerificationRecord(rawResponses);
@@ -42,7 +43,7 @@ export function generateEvaluation(user: UserProfile, answers: UserAnswers): Tes
       listeningBand: listeningBandNum,
       writingBand: "AWAITING AI EVALUATION",
       speakingBand: "AWAITING AI EVALUATION",
-      overallBand: "Pending Subjective Evaluation",
+      overallBand,
       speakingDetail: speakingPending.detail,
       writingDetail: writingPending.detail
     },
@@ -63,7 +64,7 @@ export function generateEvaluation(user: UserProfile, answers: UserAnswers): Tes
     isQa,
     user,
     completedAt: new Date().toISOString(),
-    overallBand: "Pending Evaluation",
+    overallBand,
     reading,
     listening,
     writing: writingPending.report,

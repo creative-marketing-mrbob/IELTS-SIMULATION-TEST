@@ -34,6 +34,7 @@ import {
 import {
   evaluateSpeakingWithRubric,
   evaluateWritingWithRubric,
+  calculateFourSkillOverallBand,
   roundToNearestHalfBand
 } from '../utils/subjectiveAssessment';
 import {
@@ -418,13 +419,12 @@ export const AdminDashboard: React.FC<{ mode?: AdminDashboardMode }> = ({ mode =
     const updatedSpeaking = sRes.success && sRes.report ? sRes.report : failedSpeakingReport;
     const writingBand = updatedWriting.band;
     const speakingBand = updatedSpeaking.band;
-    const overallAI =
-      typeof writingBand === 'number' &&
-      typeof speakingBand === 'number' &&
-      typeof selectedCandidate.reading.band === 'number' &&
-      typeof selectedCandidate.listening.band === 'number'
-        ? roundToNearestHalfBand((selectedCandidate.reading.band + selectedCandidate.listening.band + writingBand + speakingBand) / 4)
-        : "Partially Evaluated";
+    const overallAI = calculateFourSkillOverallBand(
+      selectedCandidate.reading.band,
+      selectedCandidate.listening.band,
+      writingBand,
+      speakingBand
+    );
 
     const updatedComparison: DualAssessmentComparison = {
       aiAssessment: {
@@ -438,10 +438,11 @@ export const AdminDashboard: React.FC<{ mode?: AdminDashboardMode }> = ({ mode =
       },
       tutorAssessment: selectedCandidate.dualComparison?.tutorAssessment,
       activeMode: 'AI',
-      needsManualReview: overallAI === "Partially Evaluated" || !wRes.success || !sRes.success
+      needsManualReview: !wRes.success || !sRes.success
     };
 
     const updatedCandidate: Partial<TestEvaluation> = {
+      overallBand: overallAI,
       writing: updatedWriting,
       speaking: updatedSpeaking,
       aiAssessments: {

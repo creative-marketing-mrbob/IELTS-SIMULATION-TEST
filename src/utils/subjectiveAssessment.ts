@@ -1,4 +1,4 @@
-import { 
+import type {
   CriterionEvidence, 
   SpeakingEvaluationDetail, 
   WritingEvaluationDetail, 
@@ -12,6 +12,23 @@ export function roundToNearestHalfBand(rawScore: number): number {
   if (rawScore <= 0) return 0.0;
   const rounded = Math.round(rawScore * 2) / 2;
   return Math.min(9.0, Math.max(1.0, rounded));
+}
+
+export function calculateFourSkillOverallBand(
+  reading: number | string | null | undefined,
+  listening: number | string | null | undefined,
+  writing: number | string | null | undefined,
+  speaking: number | string | null | undefined
+): number {
+  const bandOrZero = (value: number | string | null | undefined) => (
+    typeof value === 'number' && Number.isFinite(value) ? value : 0
+  );
+  return roundToNearestHalfBand((
+    bandOrZero(reading) +
+    bandOrZero(listening) +
+    bandOrZero(writing) +
+    bandOrZero(speaking)
+  ) / 4);
 }
 
 export function createPendingSpeakingReport(): { report: SectionScoreReport; detail: SpeakingEvaluationDetail; audit: EvaluationAuditRecord } {
