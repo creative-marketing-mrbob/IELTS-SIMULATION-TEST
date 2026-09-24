@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import './loadEnv.mjs';
+import { analyzeWavActivity } from './audioActivity.mjs';
 
 const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
 const DEFAULT_KIE_MODEL = 'gemini-3-5-flash-openai';
@@ -492,7 +493,7 @@ function dataUrlToGeminiPart(label, dataUrl, isKie = false) {
   ];
 }
 
-async function storagePathToGeminiPart(label, storagePath, isKie = false) {
+async function storagePathToGeminiPart(label, storagePath, isKie = false, audioBytes) {
   if (typeof storagePath !== 'string' || !storagePath.startsWith('speaking-recordings/')) return [];
   if (isKie && !storagePath.endsWith('.wav') && !storagePath.endsWith('.mp3')) return [];
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -523,23 +524,39 @@ async function storagePathToGeminiPart(label, storagePath, isKie = false) {
     ];
   }
 
+  const contentType = 'audio/wav';
+  return [
+    { text: `\n=== ${label.toUpperCase()} ===` },
+    { inline_data: { mime_type: contentType, data: audioBytes.toString('base64') } }
+  ];
+}
+
+async function speakingAudioBytes(audio) {
+  if (typeof audio !== 'string') {
+    throw new Error('Rekaman tidak tersedia. Silakan rekam ulang tes.');
+  }
+  if (audio.startsWith('data:')) {
+    const match = audio.match(/^data:audio\/(?:wav|x-wav|wave);base64,([A-Za-z0-9+/=]+)$/i);
+    if (!match) throw new Error('Format rekaman tidak dapat diverifikasi. Silakan rekam ulang dalam format WAV.');
+    return Buffer.from(match[1], 'base64');
+  }
+  if (!audio.startsWith('speaking-recordings/')) {
+    throw new Error('Lokasi rekaman tidak valid. Silakan rekam ulang tes.');
+  }
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Penyimpanan rekaman belum tersedia. Coba lagi nanti.');
+  }
+  const path = audio.replace(/^speaking-recordings\//, '');
   const response = await fetch(`${supabaseUrl}/storage/v1/object/speaking-recordings/${path}`, {
     headers: {
       apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`
     }
   });
-  if (!response.ok) return [];
-
-  const arrayBuffer = await response.arrayBuffer();
-  const rawContentType = response.headers.get('content-type') || '';
-  const contentType = (rawContentType && rawContentType !== 'application/octet-stream')
-    ? rawContentType
-    : (path.endsWith('.wav') ? 'audio/wav' : 'audio/webm');
-  return [
-    { text: `\n=== ${label.toUpperCase()} ===` },
-    { inline_data: { mime_type: contentType, data: Buffer.from(arrayBuffer).toString('base64') } }
-  ];
+  if (!response.ok) throw new Error('Rekaman tidak dapat diunduh. Silakan coba lagi.');
+  return Buffer.from(await response.arrayBuffer());
 }
 
 function speakingAudioSpecs(answers = {}) {
@@ -568,9 +585,20 @@ async function loadCompleteSpeakingAudio(answers, isKie) {
   }
 
   const loaded = await Promise.all(specs.map(async item => {
+    let activity;
+    let audioBytes;
+    try {
+      audioBytes = await speakingAudioBytes(item.audio);
+      activity = analyzeWavActivity(audioBytes);
+    } catch (error) {
+      throw new Error(`AI Speaking evaluation dibatalkan untuk ${item.label}: ${error.message}`);
+    }
+    if (activity.silent || !activity.hasSpeechLikeSignal) {
+      throw new Error(`AI Speaking evaluation dibatalkan untuk ${item.label}: rekaman hening atau tidak berisi suara yang cukup jelas. Tidak ada nilai yang dibuat; silakan rekam ulang.`);
+    }
     const parts = typeof item.audio === 'string' && item.audio.startsWith('data:')
       ? dataUrlToGeminiPart(item.label, item.audio, isKie)
-      : await storagePathToGeminiPart(item.label, item.audio, isKie);
+      : await storagePathToGeminiPart(item.label, item.audio, isKie, audioBytes);
     return { ...item, parts };
   }));
   const unreadable = loaded
